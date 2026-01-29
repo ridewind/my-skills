@@ -1,7 +1,7 @@
 ---
 name: code-review-orchestrator
-description: This skill should be used when the user asks to "review code", "do a code review", "review my branch", "review MR !1234", "review PR #567", "review feature/auth branch", "review feature/auth vs dev", "check code quality", or wants to orchestrate multiple code review skills/subagents. Coordinates parallel code reviews using multiple review skills and generates comprehensive summary reports.
-version: 0.1.0
+description: This skill should be used when the user asks to "review code", "do a code review", "review my branch", "review MR !1234", "review PR #567", "review feature/auth branch", "review feature/auth vs dev", "check code quality", "review entire project", "review all code", or wants to orchestrate multiple code review skills/subagents. Coordinates parallel code reviews using multiple review skills and generates comprehensive summary reports.
+version: 0.2.0
 ---
 
 # Code Review Orchestrator
@@ -36,12 +36,20 @@ Identify what code to review based on user input:
 - **Branch Comparison**: Branch A vs Branch B (e.g., `feature/auth` vs `dev`) - **IMPORTANT**: Find merge base and diff from merge base to branch A's HEAD
 - **MR/PR**: Merge Request (GitLab) or Pull Request (GitHub) by number or URL
 - **Project**: Monorepo with multiple subprojects - ask which to review
+- **Full Project**: Multiple independent projects or entire codebase - collect all project paths
 
 **Required Information:**
 - Branch names (if comparing branches)
 - MR/PR number or URL
-- Project paths (for monorepos)
+- Project paths (for monorepos or full project review)
 - Repository URL (if not current directory)
+
+**For Full Project Review:**
+When user asks to "review entire project" or "review all code":
+1. Ask user to specify which projects/directories to review
+2. For each project, check if it's a git repository
+3. Collect project metadata (tech stack, LOC, file count)
+4. Confirm with user before proceeding
 
 ### Step 2: Establish Working Directory
 
@@ -123,51 +131,172 @@ Collect comprehensive review information and save to working directory:
 }
 ```
 
+**For Full Project Review (non-Git or multi-project):**
+```json
+{
+  "review_type": "full_project",
+  "projects": [
+    {
+      "name": "frontend",
+      "path": "/path/to/frontend",
+      "tech_stack": ["Nuxt.js", "Vue 2"],
+      "language": "javascript"
+    },
+    {
+      "name": "backend",
+      "path": "/path/to/backend",
+      "tech_stack": ["Spring Boot", "MyBatis"],
+      "language": "java"
+    }
+  ]
+}
+```
+
 **Critical for Branch Comparison:**
 When comparing branch A vs branch B:
 1. Find merge base: `git merge-base A B`
 2. Diff from merge base to A: `git diff merge_base...A`
 3. This ensures only unique changes in A are reviewed
 
+**Confirm with User:**
+After collecting code context, present to user:
+```
+Collected review information:
+- Review Type: Full project review
+- Projects: 2 projects (frontend, backend)
+- Frontend: /projects/bupt/eduiot-lab (~13,800 LOC)
+- Backend: /projects/bupt/space-server (~7,000 LOC)
+- Working directory: /projects/bupt/reviews/full-project-review
+
+Proceed with review? (yes/no)
+```
+
+**DO NOT proceed to Step 4 without user confirmation.**
+
 ### Step 4: Discover Available Review Skills
 
 Identify which code review skills are available in the current environment.
 
 **Check available skills:**
+Look for skills with these patterns in their description:
+- "code review", "review code", "review MR/PR"
+- "security", "performance", "quality", "lint"
+
+**Common review skills:**
 - `code-review:code-review` - General code review
+- `code-review-orchestrator` - Orchestrates parallel reviews (this skill)
+- `pr-review-toolkit:review-pr` - Comprehensive PR review
 - `superpowers:code-reviewer` - Post-development review against plan
-- Project-specific review skills (custom)
-- Language-specific linters/checkers
+- `security-scanning:security-auditor` - Security vulnerability scan
+- `code-documentation:code-reviewer` - Elite code review expert
+
+**Skill Discovery Process:**
+1. Review the list of available skills in system-reminder
+2. Identify skills whose description mentions "review", "security", "quality", etc.
+3. Filter to skills relevant to code review
+4. Present findings to user
 
 **Present options to user:**
 ```
 Available review skills:
 1. code-review:code-review - General quality review
-2. security-analyzer - Security vulnerability check
-3. performance-checker - Performance analysis
-4. style-enforcer - Code style consistency
+2. pr-review-toolkit:review-pr - Comprehensive PR review
+3. security-scanning:security-auditor - Security vulnerability check
+4. superpowers:code-reviewer - Post-development review
 
-Which skills would you like to use? (Select multiple)
+Selected projects:
+- Frontend (Nuxt.js) - 119 files
+- Backend (Spring Boot) - 104 files
+
+Which skills would you like to use for review? (Select multiple)
+Recommended: Use 2-4 different skills for comprehensive coverage
 ```
+
+**Ask user to select which skills to use.**
+**DO NOT proceed to Step 5 without user skill selection.**
 
 ### Step 5: Launch Parallel Subagents
 
 **Use Task tool with run_in_background=true** to launch multiple subagents in parallel.
 
+**CRITICAL**: Each subagent MUST use a DIFFERENT review skill via the Skill tool.
+
 **Example parallel launch:**
 ```
-Launch subagent 1: Using code-review:code-review skill
-Launch subagent 2: Using security-analyzer skill
-Launch subagent 3: Using performance-checker skill
+Launch subagent 1: Use code-review:code-review skill
+Launch subagent 2: Use security-scanning:security-auditor skill
+Launch subagent 3: Use pr-review-toolkit:review-pr skill
 ```
 
 **Provide each subagent with:**
 - Location of `code-context.json`
-- Location of `diff.patch`
+- Location of `diff.patch` (for git reviews) OR project paths (for full project review)
 - Output report path: `reports/{skill-name}-report.md`
-- Skill-specific instructions
+- **INSTRUCTION to use Skill tool to invoke the review skill**
 
-**Wait for all subagents to complete** before proceeding.
+**Subagent Prompt Template:**
+```markdown
+You are reviewing code as part of a comprehensive code review.
+
+**Your assigned skill**: {skill_name}
+
+**Task**:
+1. Use the Skill tool to invoke: {skill_name}
+2. Provide the skill with:
+   - Review scope: {scope_description}
+   - Code location: {code_path}
+   - Any additional context from code-context.json
+3. Generate a comprehensive report following that skill's workflow
+4. Save your report to: {output_path}
+
+**IMPORTANT**:
+- You MUST use the Skill tool to invoke {skill_name}
+- Do NOT review code manually - let the skill guide you
+- The skill will provide the specific review methodology
+- Follow the skill's workflow exactly
+```
+
+**Example Task tool calls:**
+```yaml
+Task 1:
+  subagent_type: general-purpose
+  description: Review using code-review:code-review
+  run_in_background: true
+  prompt: |
+    You are reviewing the frontend code using the code-review:code-review skill.
+    Project path: /projects/bupt/eduiot-lab
+    Output: /projects/bupt/reviews/full-project-review/reports/code-review-report.md
+    Use the Skill tool to invoke code-review:code-review
+
+Task 2:
+  subagent_type: general-purpose
+  description: Review using security-scanning:security-auditor
+  run_in_background: true
+  prompt: |
+    You are reviewing both frontend and backend for security issues.
+    Frontend: /projects/bupt/eduiot-lab
+    Backend: /projects/bupt/space-server
+    Output: /projects/bupt/reviews/full-project-review/reports/security-report.md
+    Use the Skill tool to invoke security-scanning:security-auditor
+
+Task 3:
+  subagent_type: general-purpose
+  description: Review using pr-review-toolkit:review-pr
+  run_in_background: true
+  prompt: |
+    You are reviewing code quality using pr-review-toolkit:review-pr skill.
+    Review all files in both projects.
+    Output: /projects/bupt/reviews/full-project-review/reports/pr-review-report.md
+    Use the Skill tool to invoke pr-review-toolkit:review-pr
+```
+
+**File Writing Strategy:**
+- Subagents should use Write tool to save their reports
+- If subagents cannot write files, they should output the full report content
+- Main agent: Collect all outputs and save using Write tool
+- Ensure `reports/` directory exists before launching subagents
+
+**Wait for all subagents to complete** using TaskOutput tool before proceeding to Step 6.
 
 ### Step 6: Generate Consolidated Summary
 
@@ -312,6 +441,41 @@ MERGE_BASE=$(git merge-base dev feature/auth)
 git diff $MERGE_BASE...feature/auth > diff.patch
 ```
 
+### Full Project Review
+
+When reviewing entire projects or multiple independent projects:
+
+**1. Discover Project Structure**
+- Use `ls` and `find` to understand directory layout
+- Check for package.json, pom.xml, requirements.txt, etc.
+- Identify tech stack and language
+- Count lines of code
+
+**2. Collect Project Metadata**
+```bash
+# Example: Frontend project
+cd /projects/bupt/eduiot-lab
+find . -name "*.vue" -o -name "*.js" | wc -l  # Count files
+cat package.json  # Identify framework
+
+# Example: Backend project
+cd /projects/bupt/space-server
+find . -name "*.java" | wc -l  # Count files
+cat pom.xml  # Identify framework
+```
+
+**3. Use Appropriate Review Skills**
+- For frontend: code-review:code-review, javascript-typescript:javascript-pro
+- For backend: code-review:code-review, jvm-languages:java-pro
+- For security: security-scanning:security-auditor
+- For architecture: code-review-ai:architect-review
+
+**4. Coordinate Subagent Communication**
+- Each subagent reviews independently
+- No inter-subagent communication needed
+- Main agent consolidates all reports
+- Use file system for data sharing
+
 ### Parallel Subagent Execution
 
 **Launch subagents in parallel** using Task tool with `run_in_background=true`:
@@ -346,6 +510,29 @@ prompt: |
 
 ## Troubleshooting
 
+### Project Not Recognized
+
+**Problem**: Commands like `cd space-server` fail with "No such file or directory"
+
+**Root Cause**: Skill assumes git workflow, but user has independent projects
+
+**Solutions:**
+1. Identify this is "full project review", not branch comparison
+2. Use absolute paths to projects
+3. Don't use `cd` - use full paths in commands
+4. Ask user to confirm project paths
+
+**Example:**
+```bash
+# WRONG
+cd space-server && git log
+
+# RIGHT
+cd /projects/bupt/space-server && git log
+# OR
+git -C /projects/bupt/space-server log
+```
+
 ### No Diff Output
 
 **Problem**: Empty `diff.patch` file
@@ -365,6 +552,47 @@ prompt: |
 - Verify skill is available
 - Reduce scope (fewer files)
 - Increase timeout limits
+
+### Subagents Cannot Write Files
+
+**Problem**: Report files not created in `reports/` directory
+
+**Root Cause**: Subagents may not have write permissions or Write tool access
+
+**Solutions:**
+1. Main agent creates `reports/` directory before launching subagents
+2. Subagent attempts to write file using Write tool
+3. If write fails, subagent outputs full report content as text
+4. Main agent collects outputs and saves using Write tool
+
+**Pattern:**
+```yaml
+# Main agent
+mkdir -p reports/
+
+# Launch subagent with fallback instruction
+Task(prompt: |
+  1. Perform review using {skill}
+  2. Try to save report to: reports/{skill}-report.md
+  3. If Write tool fails, output full report as markdown text
+  4. Include "REPORT_START" and "REPORT_END" markers
+)
+
+# Main agent collects output
+TaskOutput(task_id, block=true)
+Read output file, extract report between markers
+Save using Write tool
+```
+
+### Skills Not Discovered
+
+**Problem**: No review skills found or presented to user
+
+**Solutions:**
+- Check system-reminder for available skills list
+- Look for skills with "review" in description
+- Ask user which skills they want to use
+- Fall back to general-purpose agents with custom prompts
 
 ### Duplicate Findings
 
