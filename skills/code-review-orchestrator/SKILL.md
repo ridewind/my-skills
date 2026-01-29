@@ -1,7 +1,7 @@
 ---
 name: code-review-orchestrator
 description: This skill should be used when the user asks to "review code", "do a code review", "review my branch", "review MR !1234", "review PR #567", "review feature/auth branch", "review feature/auth vs dev", "check code quality", "review entire project", "review all code", or wants to orchestrate multiple code review skills/subagents. Coordinates parallel code reviews using multiple review skills and generates comprehensive summary reports.
-version: 0.2.0
+version: 0.2.1
 ---
 
 # Code Review Orchestrator
@@ -16,6 +16,18 @@ This skill manages the complete code review workflow:
 - Consolidate individual review reports into comprehensive summaries
 - Help users identify and fix issues
 
+## Debug Mode
+
+**Current Status**: 🔍 Debug mode is ENABLED
+
+This skill includes debug outputs (marked with 🔍) to help track execution progress:
+- Step indicators: `[Step X/6]`
+- Checkpoints: `[Checkpoint N]`
+- Progress tracking and status displays
+- Detailed information at each stage
+
+**To disable debug mode**: Remove all lines marked with 🔍 from this skill file.
+
 ## When to Use
 
 Trigger this skill when users request code review with phrases like:
@@ -27,7 +39,11 @@ Trigger this skill when users request code review with phrases like:
 
 ## Workflow
 
+**DEBUG MODE ENABLED**: This skill includes debug outputs to track execution progress.
+
 ### Step 1: Determine Review Scope
+
+**🔍 DEBUG [Step 1/6]**: Starting - Determine Review Scope
 
 Identify what code to review based on user input:
 
@@ -53,6 +69,8 @@ When user asks to "review entire project" or "review all code":
 
 ### Step 2: Establish Working Directory
 
+**🔍 DEBUG [Step 2/6]**: Establishing working directory
+
 Ask user for working directory with default: `{project_root}/reviews/{review_name}`
 
 **Example:**
@@ -75,6 +93,8 @@ reviews/{review_name}/
 ```
 
 ### Step 3: Collect and Save Code Content
+
+**🔍 DEBUG [Step 3/6]**: Collecting code context and metadata
 
 Collect comprehensive review information and save to working directory:
 
@@ -160,20 +180,42 @@ When comparing branch A vs branch B:
 
 **Confirm with User:**
 After collecting code context, present to user:
+
+**🔍 DEBUG [Checkpoint 1]**: Display collected information for confirmation
+
 ```
-Collected review information:
-- Review Type: Full project review
-- Projects: 2 projects (frontend, backend)
-- Frontend: /projects/bupt/eduiot-lab (~13,800 LOC)
-- Backend: /projects/bupt/space-server (~7,000 LOC)
-- Working directory: /projects/bupt/reviews/full-project-review
+═════════════════════════════════════════════════════════
+📊 Code Review Information Collected
+═════════════════════════════════════════════════════════
+
+Review Type: Full project review
+Projects: 2 projects (frontend, backend)
+
+Frontend:
+  - Path: /projects/bupt/eduiot-lab
+  - LOC: ~13,800
+  - Tech Stack: Nuxt.js, Vue 2, Element UI
+
+Backend:
+  - Path: /projects/bupt/space-server
+  - LOC: ~7,000
+  - Tech Stack: Spring Boot, MyBatis, MySQL
+
+Working Directory: /projects/bupt/reviews/full-project-review
+═════════════════════════════════════════════════════════
 
 Proceed with review? (yes/no)
 ```
 
+**🔍 DEBUG**: Wait for user confirmation before proceeding
+
 **DO NOT proceed to Step 4 without user confirmation.**
 
 ### Step 4: Discover Available Review Skills
+
+**🔍 DEBUG [Step 4/6]**: Discovering available review skills
+
+**🔍 DEBUG**: Check system-reminder for available skills list
 
 Identify which code review skills are available in the current environment.
 
@@ -197,35 +239,72 @@ Look for skills with these patterns in their description:
 4. Present findings to user
 
 **Present options to user:**
+
+**🔍 DEBUG [Checkpoint 2]**: Display discovered skills and request selection
+
 ```
-Available review skills:
+═════════════════════════════════════════════════════════
+🔍 Available Review Skills Discovered
+═════════════════════════════════════════════════════════
+
+Found 4 review skills:
 1. code-review:code-review - General quality review
 2. pr-review-toolkit:review-pr - Comprehensive PR review
 3. security-scanning:security-auditor - Security vulnerability check
 4. superpowers:code-reviewer - Post-development review
 
-Selected projects:
-- Frontend (Nuxt.js) - 119 files
-- Backend (Spring Boot) - 104 files
+Projects to review:
+- Frontend (Nuxt.js) - 119 files, ~19,145 LOC
+- Backend (Spring Boot) - 104 files, ~7,062 LOC
 
 Which skills would you like to use for review? (Select multiple)
 Recommended: Use 2-4 different skills for comprehensive coverage
+═════════════════════════════════════════════════════════
 ```
+
+**🔍 DEBUG**: Show user's skill selection: `[skill1, skill2, ...]`
 
 **Ask user to select which skills to use.**
 **DO NOT proceed to Step 5 without user skill selection.**
 
 ### Step 5: Launch Parallel Subagents
 
+**🔍 DEBUG [Step 5/6]**: Launching parallel subagents with review skills
+
+**🔍 DEBUG**: Show selected skills and subagent configuration before launch
+
 **Use Task tool with run_in_background=true** to launch multiple subagents in parallel.
 
 **CRITICAL**: Each subagent MUST use a DIFFERENT review skill via the Skill tool.
 
 **Example parallel launch:**
+
+**🔍 DEBUG [Checkpoint 3]**: Display subagent launch configuration
+
 ```
-Launch subagent 1: Use code-review:code-review skill
-Launch subagent 2: Use security-scanning:security-auditor skill
-Launch subagent 3: Use pr-review-toolkit:review-pr skill
+═════════════════════════════════════════════════════════
+🚀 Launching Parallel Subagents
+═════════════════════════════════════════════════════════
+
+Subagent 1: code-review:code-review
+  - Review scope: Frontend (Nuxt.js)
+  - Output: reports/code-review-report.md
+
+Subagent 2: security-scanning:security-auditor
+  - Review scope: Both projects
+  - Output: reports/security-report.md
+
+Subagent 3: pr-review-toolkit:review-pr
+  - Review scope: All files
+  - Output: reports/pr-review-report.md
+═════════════════════════════════════════════════════════
+```
+
+**🔍 DEBUG**: Track subagent status
+```
+Agent 1 (code-review): ⏳ Starting...
+Agent 2 (security):    ⏳ Starting...
+Agent 3 (pr-review):    ⏳ Starting...
 ```
 
 **Provide each subagent with:**
@@ -298,7 +377,43 @@ Task 3:
 
 **Wait for all subagents to complete** using TaskOutput tool before proceeding to Step 6.
 
+**🔍 DEBUG**: Show subagent completion status
+```
+Agent 1 (code-review): ✅ Complete
+Agent 2 (security):    ✅ Complete
+Agent 3 (pr-review):    ✅ Complete
+
+All reports generated successfully!
+```
+
 ### Step 6: Generate Consolidated Summary
+
+**🔍 DEBUG [Step 6/6]**: Generating consolidated summary from all reports
+
+**🔍 DEBUG [Checkpoint 4]**: Display report collection status
+
+```
+═════════════════════════════════════════════════════════
+📊 Collecting Reports from Subagents
+═════════════════════════════════════════════════════════
+
+Found 3 reports in reports/ directory:
+✓ code-review-report.md (32 issues found)
+✓ security-report.md (19 issues found)
+✓ pr-review-report.md (25 issues found)
+
+Total issues to consolidate: 76 issues
+═════════════════════════════════════════════════════════
+```
+
+**🔍 DEBUG**: Show categorization progress
+```
+Categorizing issues by severity...
+- Critical: 3 issues
+- High: 13 issues
+- Medium: 31 issues
+- Low: 29 issues
+```
 
 **Read all individual reports** from `reports/` directory.
 
