@@ -1,7 +1,7 @@
 ---
 name: code-review-orchestrator
 description: This skill should be used when the user asks to "review code", "do a code review", "review my branch", "review MR !1234", "review PR #567", "review feature/auth branch", "review feature/auth vs dev", "check code quality", "review entire project", "review all code", or wants to orchestrate multiple code review skills/subagents. Coordinates parallel code reviews using multiple review skills and generates comprehensive summary reports.
-version: 0.3.2
+version: 0.4.0
 ---
 
 # Code Review Orchestrator
@@ -18,15 +18,22 @@ This skill manages the complete code review workflow:
 
 ## Debug Mode
 
-**Current Status**: 🔍 Debug mode is ENABLED
+**Configuration**: Debug mode can be controlled via user input or interactive confirmation.
 
-This skill includes debug outputs (marked with 🔍) to help track execution progress:
-- Step indicators: `[Step X/6]`
-- Checkpoints: `[Checkpoint N]`
-- Progress tracking and status displays
-- Detailed information at each stage
+**How to Enable Debug Mode**:
+1. **Automatic**: Include debug keywords in your request (`debug`, `verbose`, `调试`, `详细`, `--debug`, `-v`)
+2. **Interactive**: When prompted, select "启用调试" to enable detailed logging
 
-**To disable debug mode**: Remove all lines marked with 🔍 from this skill file.
+**Debug Mode Records** (when enabled):
+- All checkpoints and decision points
+- User selections and confirmations
+- Subagent launch and completion status
+- Timestamps and progress tracking
+- Complete interaction history
+
+**Output**: Saved to `DEBUG-SESSION.md` in the working directory
+
+**To force always-on**: Change Step 0 to always set `debug_mode = True`
 
 ## When to Use
 
@@ -39,11 +46,73 @@ Trigger this skill when users request code review with phrases like:
 
 ## Workflow
 
-**DEBUG MODE ENABLED**: This skill includes debug outputs to track execution progress.
+**DEBUG MODE CONFIGURATION**: Debug mode can be controlled via user input or interactive confirmation.
+
+### Step 0: Debug Mode Detection (Optional)
+
+**🔍 DEBUG [Step 0/7]**: Checking if debug mode should be enabled
+
+Determine whether to enable detailed debug logging based on user input or confirmation.
+
+**Automatic Detection**:
+Check user's initial input for debug-related keywords:
+- `debug`, `verbose`, `detail`, `log`, `trace`
+- `--debug`, `-v`, `--verbose`
+- Chinese: `调试`, `详细`, `日志`, `记录`
+
+**Detection Logic**:
+```python
+# Get user's initial input
+user_input = "<user's original request>"  # e.g., "Review my code with debug"
+user_input_lower = user_input.lower()
+
+# Keywords that trigger debug mode
+debug_keywords = [
+    'debug', 'verbose', 'detail', 'log', 'trace',
+    '--debug', '-v', '--verbose',
+    '调试', '详细', '日志', '记录'
+]
+
+# Auto-detect
+debug_mode = any(keyword in user_input_lower for keyword in debug_keywords)
+
+if debug_mode:
+    print("✅ Debug mode automatically enabled (keyword detected)")
+else:
+    # Ask user if they want debug mode
+    response = AskUserQuestion(
+        questions=[
+            {
+                "question": "是否启用详细调试日志？\n\n启用后会记录完整的审查过程，包括：\n- 所有决策点和选择\n- 子代理启动和完成状态\n- 时间戳和进度信息\n- 完整的交互历史\n\n生成的日志将保存到 DEBUG-SESSION.md 文件中。",
+                "header": "调试模式",
+                "options": [
+                    {
+                        "label": "启用调试",
+                        "description": "记录完整审查过程到DEBUG-SESSION.md"
+                    },
+                    {
+                        "label": "不启用",
+                        "description": "仅显示基本进度信息，不生成详细日志"
+                    }
+                ],
+                "multiSelect": False
+            }
+        ]
+    )
+    debug_mode = (response == "启用调试")
+```
+
+**Debug Mode Behavior**:
+- **Enabled**: Record all 🔍 checkpoints, user choices, timestamps, subagent status to DEBUG-SESSION.md
+- **Disabled**: Only show basic progress indicators, no detailed session log
+
+**🔍 DEBUG Status**: `Debug mode = {debug_mode}`
+
+---
 
 ### Step 1: Determine Review Scope
 
-**🔍 DEBUG [Step 1/6]**: Starting - Determine Review Scope
+**🔍 DEBUG [Step 1/7]**: Starting - Determine Review Scope
 
 Identify what code to review based on user input:
 
@@ -69,7 +138,7 @@ When user asks to "review entire project" or "review all code":
 
 ### Step 2: Establish Working Directory
 
-**🔍 DEBUG [Step 2/6]**: Establishing working directory
+**🔍 DEBUG [Step 2/7]**: Establishing working directory
 
 **IMPORTANT**: Working directory name MUST include date and sequence number to avoid conflicts.
 
@@ -143,7 +212,7 @@ reviews/{review_name}-{YYYYMMDD}-{sequence}/
 
 ### Step 3: Collect and Save Code Content
 
-**🔍 DEBUG [Step 3/6]**: Collecting code context and metadata
+**🔍 DEBUG [Step 3/7]**: Collecting code context and metadata
 
 Collect comprehensive review information and save to working directory:
 
@@ -287,7 +356,7 @@ Working Directory: /projects/bupt/reviews/full-project-review-20260130-1
 
 ### Step 4: Discover Available Review Skills
 
-**🔍 DEBUG [Step 4/6]**: Discovering available review skills
+**🔍 DEBUG [Step 4/7]**: Discovering available review skills
 
 **🔍 DEBUG**: Check system-reminder for available skills list
 
@@ -415,7 +484,7 @@ AskUserQuestion(
 
 ### Step 5: Launch Parallel Subagents
 
-**🔍 DEBUG [Step 5/6]**: Launching parallel subagents with review skills
+**🔍 DEBUG [Step 5/7]**: Launching parallel subagents with review skills
 
 **🔍 DEBUG**: Show selected skills and subagent configuration before launch
 
@@ -534,7 +603,7 @@ All reports generated successfully!
 
 ### Step 6: Generate Consolidated Summary
 
-**🔍 DEBUG [Step 6/6]**: Generating consolidated summary from all reports
+**🔍 DEBUG [Step 6/7]**: Generating consolidated summary from all reports
 
 **🔍 DEBUG [Checkpoint 4]**: Display report collection status
 
@@ -695,7 +764,262 @@ Individual skill reports:
 - [pr-review-toolkit:review-pr report](reports/pr-review-report.md)
 ```
 
-### Step 7: Interactive Issue Resolution
+### Step 7: Generate Debug Session Log (If Debug Mode Enabled)
+
+**🔍 DEBUG [Step 7/7]**: Generating DEBUG-SESSION.md
+
+**CRITICAL**: Only execute this step if `debug_mode = True` from Step 0.
+
+**When to Generate**: After comprehensive summary is complete, before interactive issue resolution.
+
+**What to Record**:
+```markdown
+# Code Review Orchestrator - Session Debug Log
+
+**Session Date**: {CURRENT_DATE}
+**Session ID**: {review_name}-{YYYYMMDD}-{sequence}
+**Working Directory**: `{full_path_to_working_dir}`
+**Skill**: code-review-orchestrator
+**Status**: ✅ COMPLETED
+
+---
+
+## 1. Session Configuration
+
+### User Input
+- **原始请求**: "{user's original request}"
+- **意图**: {review_type}
+- **项目数量**: {number_of_projects}
+
+### Identified Projects
+**Project 1 ({name})**:
+- Path: `{path}`
+- Tech Stack: {tech_stack}
+- File Count: {count}
+- Language: {language}
+
+### Working Directory Creation
+```bash
+DATE={date}
+EXISTING_COUNT={existing_count}
+SEQUENCE={sequence}
+WORKING_DIR="{working_dir}"
+# Result: {final_working_dir}
+```
+
+---
+
+## 2. Execution Timeline
+
+### Step 0: Debug Mode Detection
+**Time**: {start_time} - {end_time}
+- ✅ Debug mode: {ENABLED/DISABLED}
+- Detection method: {keyword_detected / user_confirmed}
+
+### Step 1: Determine Review Scope
+**Time**: {start_time} - {end_time}
+- ✅ Identified as: {review_type}
+- ✅ Discovered {number} projects
+- ✅ Collected project metadata
+
+### Step 2: Establish Working Directory
+**Time**: {start_time}
+- ✅ Created unique directory with date and sequence
+- ✅ Created reports/ subdirectory
+- ✅ Confirmed directory structure
+
+### Step 3: Collect Code Context
+**Time**: {start_time} - {end_time}
+- ✅ Saved code-context.json
+- **Content**: Project metadata, tech stack, file counts
+
+### Step 4: User Confirmation
+**Time**: {time}
+- ✅ Used AskUserQuestion tool
+- **User Choice**: "{choice}"
+- Confirmation received
+
+### Step 5: Skill Selection
+**Time**: {start_time} - {end_time}
+- ✅ Discovered available skills
+- ✅ Presented skill options to user
+- **User Choice**: "{choice}"
+
+**Selected Skills**:
+1. {skill_name_1}
+2. {skill_name_2}
+3. {skill_name_3}
+...
+
+### Step 6: Launch Subagents
+**Time**: {start_time} - {end_time}
+
+**Subagent 1**:
+- Agent ID: {agent_id}
+- Task: {task_description}
+- Status: ✅ Completed
+- Output: {output_path}
+- Report: {report_path}
+
+**Subagent 2**:
+- Agent ID: {agent_id}
+- Task: {task_description}
+- Status: ✅ Completed
+- Output: {output_path}
+- Report: {report_path}
+
+...
+
+### Step 7: Generate Comprehensive Summary
+**Time**: {start_time} - {end_time}
+- ✅ Read all generated reports
+- ✅ Consolidated findings
+- ✅ Created comprehensive summary
+- ✅ Saved: {summary_file_name}
+
+**Total Duration**: ~{total_time}
+
+---
+
+## 3. Files Generated
+
+### Primary Output Files
+```
+{working_directory}/
+├── code-context.json                              # Review metadata
+├── {review_name}-{YYYYMMDD}-{sequence}-comprehensive-summary.md  # Main report
+└── reports/
+    ├── skill1-report.md                           # {size}, {lines} lines
+    ├── skill2-report.md                           # {size}, {lines} lines
+    └── ...
+```
+
+---
+
+## 4. Key Decisions and Rationale
+
+### Decision 1: Review Type Determination
+**Input**: "{user_input}"
+**Analysis**: {analysis}
+**Decision**: {decision}
+**Rationale**: {rationale}
+
+### Decision 2: Skill Selection Strategy
+**Options Presented**: {options}
+**User Choice**: "{user_choice}"
+**Selected Skills**: {skills_list}
+**Rationale**: {rationale}
+
+---
+
+## 5. Issues Encountered
+
+### Issue 1: {issue_title}
+**Problem**: {problem_description}
+**Resolution**: {resolution}
+**Impact**: {impact}
+
+---
+
+## 6. Performance Metrics
+
+### Execution Time
+- Total Duration: ~{total_time}
+- Per Subagent Average: ~{average_time}
+- Consolidation: ~{consolidation_time}
+
+### Resource Usage
+- Subagents: {number} parallel agents
+- Tokens Used: Estimated {token_count}+ tokens
+- Files Generated: {number} files (~{total_lines} lines total)
+
+### Success Rate
+- Subagents Completed: {completed}/{total} ({percentage}%)
+- Reports Saved: {saved}/{total} ({percentage}%)
+- Findings Integrated: {integrated}/{total} ({percentage}%)
+
+---
+
+## 7. Findings Summary
+
+### By Dimension
+**Code Quality**: {grade}
+**Security**: {grade}
+**Architecture**: {grade}
+**Test Coverage**: {grade}
+
+---
+
+## 8. Recommendations for Improvement
+
+### Process Improvements
+1. {improvement_1}
+2. {improvement_2}
+3. {improvement_3}
+
+---
+
+## 9. Session Context
+
+### Initial Request
+```
+User: {user_command}
+Arguments: {user_arguments}
+```
+
+### Execution Flow
+1. {step_1}
+2. {step_2}
+3. {step_3}
+...
+
+---
+
+## 10. Technical Details
+
+### Environment
+- **Platform**: {platform}
+- **OS**: {os_version}
+- **Date**: {date}
+- **Working Directory**: {working_dir}
+- **Git Repository**: {git_status}
+
+### Tool Versions
+- **Claude Code**: {version}
+- **Skill Version**: code-review-orchestrator v{version}
+- **Subagents**: {agent_type} ({number} instances)
+
+---
+
+## 11. Error Log
+
+### Errors Encountered
+{if_errors_exist}
+### Error 1: {error_title}
+```
+{error_details}
+```
+**Resolution**: {resolution}
+{else}
+No errors encountered during this session.
+{end_if}
+
+---
+
+**END OF SESSION DEBUG LOG**
+
+Generated: {generation_time}
+Logger: Claude Code (code-review-orchestrator skill v{version})
+Session: {session_id}
+```
+
+**Save Location**: `{working_directory}/DEBUG-SESSION.md`
+
+**🔍 DEBUG**: Session log saved to DEBUG-SESSION.md
+
+---
+
+### Step 8: Interactive Issue Resolution
 
 **After generating summary, present actionable next steps:**
 
