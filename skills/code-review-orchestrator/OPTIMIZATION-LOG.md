@@ -1,0 +1,316 @@
+# Code Review Orchestrator - 优化日志
+
+**优化日期**: 2026-01-30
+**优化版本**: 0.2.1 → 0.3.0
+**优化人**: Claude Code
+
+---
+
+## 更新记录
+
+| 版本 | 日期 | 更新内容 |
+|------|------|----------|
+| 0.3.1 | 2026-01-30 | 工作目录命名优化（日期+序号），避免重复审查冲突 |
+| 0.3.0 | 2026-01-30 | 优化用户确认、技能发现、文件命名、问题标注（完整技能名称） |
+| 0.2.1 | 2026-01-29 | 初始版本，支持并行审查 |
+
+---
+
+## 优化概述
+
+根据用户反馈的两个实际使用案例（mr557-aihub-refactor 和 full-project-review），对 code-review-orchestrator 技能进行了全面优化。
+
+---
+
+## 优化内容
+
+### 1. 用户确认流程优化 ✅
+
+**问题**: 两次review的确认方式不一致，mr557使用了友好的交互界面，而bupt那次没有。
+
+**解决方案**:
+- 在所有关键确认点使用 `AskUserQuestion` 工具，而不是文本提示
+- 提供结构化的选项供用户选择
+- 确保用户确认的一致性
+
+**修改位置**: SKILL.md Step 3 和 Step 4
+
+**修改前**:
+```text
+Proceed with review? (yes/no)
+```
+
+**修改后**:
+```python
+AskUserQuestion(
+    questions=[
+        {
+            "question": "代码审查信息已收集，是否继续？",
+            "header": "确认审查",
+            "options": [
+                {
+                    "label": "继续审查",
+                    "description": "开始执行代码审查，启动并行子代理"
+                },
+                {
+                    "label": "取消",
+                    "description": "取消本次审查，退出技能"
+                }
+            ],
+            "multiSelect": False
+        }
+    ]
+)
+```
+
+---
+
+### 2. 技能发现逻辑完善 ✅
+
+**问题**: 两次review时供用户选择的review技能都不全，不如直接打出/review后提示的那么全。
+
+**解决方案**:
+- 扩展技能列表，从6个增加到20+个
+- 包含更多pr-review-toolkit家族的技能
+- 包含comprehensive-review家族的技能
+- 包含其他相关review技能
+
+**新增技能列表**:
+- `pr-review-toolkit:silent-failure-hunter` - 静默失败检测
+- `pr-review-toolkit:code-simplifier` - 代码简化分析
+- `pr-review-toolkit:comment-analyzer` - 注释分析
+- `pr-review-toolkit:pr-test-analyzer` - PR测试分析
+- `pr-review-toolkit:type-design-analyzer` - 类型设计审查
+- `comprehensive-review:code-reviewer` - 深度代码分析
+- `comprehensive-review:architect-review` - 架构审查
+- `comprehensive-review:security-auditor` - 综合安全审计
+- `code-review-ai:code-review` - AI驱动代码审查
+- `codebase-cleanup:code-reviewer` - 代码清理审查
+- `feature-dev:code-reviewer` - 功能开发审查
+- `feature-dev:code-explorer` - 代码探索
+
+**修改位置**: SKILL.md Step 4
+
+---
+
+### 3. 文件命名规范统一 ✅
+
+**问题**: 两次review的文件命名不一致
+- mr557: `mr557-comprehensive-summary.md`, `debug-session-report.md`
+- bupt: `full-project-summary.md`, `DEBUG-SESSION.md`
+
+**解决方案**: 统一文件命名规范
+
+**统一标准**:
+```
+reviews/{review_name}/
+├── code-context.json                     # 元数据（小写+连字符）
+├── diff.patch                             # Git diff
+├── commits.json                           # 提交历史
+├── branch-info.json                       # 分支信息
+├── DEBUG-SESSION.md                       # 调试日志（固定大写）
+├── {review_name}-comprehensive-summary.md # 综合总结（固定后缀）
+└── reports/                               # 子代理报告
+    ├── skill-name-report.md               # 技能报告
+    └── ...
+```
+
+**命名规则**:
+1. **Summary文件**: 必须使用 `-comprehensive-summary.md` 后缀
+2. **Debug日志**: 必须使用 `DEBUG-SESSION.md`（固定名称，大写）
+3. **技能报告**: `{skill-short-name}-report.md`
+4. **上下文文件**: 小写加连字符（code-context.json, diff.patch）
+
+**修改位置**: SKILL.md Step 2 和 Step 6
+
+---
+
+### 4. 总结报告技能来源标注 ✅
+
+**问题**: mr557的报告没有明确标注每个问题是由哪个技能发现的，而bupt的报告有标注（🔵 [CR], 🔴 [SA], 🟢 [CVR]）
+
+**解决方案**: 在总结报告模板中明确要求标注每个问题的技能来源
+
+**模板结构**:
+```markdown
+## 🤖 Review Skills Used
+
+| Skill Name | Focus Area | Key Contributions |
+|------------|------------|-------------------|
+| code-review:code-review | 代码质量与最佳实践 | 代码规范、潜在bug、可维护性 |
+| security-scanning:security-auditor | 安全漏洞审计 | OWASP Top 10、注入攻击、认证授权 |
+| pr-review-toolkit:review-pr | 全面PR审查 | 功能完整性、测试覆盖、文档 |
+
+## 🔴 Critical Issues
+
+### 1. SQL Injection Risk in auth/login.js
+- **Location**: `src/auth/login.js:45`
+- **Severity**: Critical
+- **Found by**: code-review:code-review, security-scanning:security-auditor
+- **Issue**: User input directly concatenated into SQL query
+```
+
+**关键特性**:
+- 每个问题在 "Found by" 字段使用**完整技能名称**
+- 使用逗号分隔多个技能：`code-review:code-review, security-scanning:security-auditor`
+- 不使用简写符号标签
+- 提供技能贡献汇总表，说明每个技能的专注领域
+
+**修改位置**: SKILL.md Step 6
+
+---
+
+### 5. 工作目录命名优化（日期+序号） ✅
+
+**问题**: 重复审查同一MR或项目会导致目录冲突
+- 例如：`mr557-aihub-refactor` 和 `full-project-review` 重复执行会覆盖数据
+- 无法区分同一项目的多次审查
+
+**解决方案**: 工作目录命名增加日期和序号
+
+**命名格式**: `{review_name}-{YYYYMMDD}-{sequence}`
+
+**示例**:
+```
+第一次审查 (2026-01-30):  mr557-aihub-refactor-20260130-1
+第二次审查 (同一天):      mr557-aihub-refactor-20260130-2
+第二天第一次审查:        mr557-aihub-refactor-20260131-1
+```
+
+**实现逻辑**:
+```bash
+# 获取当前日期
+DATE=$(date +%Y%m%d)
+
+# 基础目录名
+BASE_DIR="{review_name}-${DATE}"
+
+# 查找现有目录数量
+EXISTING=$(find reviews -maxdepth 1 -name "${BASE_DIR}-*" | wc -l)
+
+# 计算下一个序号
+SEQUENCE=$((EXISTING + 1))
+
+# 最终目录名
+WORKING_DIR="${BASE_DIR}-${SEQUENCE}"
+```
+
+**优势**:
+- ✅ 避免目录冲突
+- ✅ 可追溯审查时间
+- ✅ 保留历史审查记录
+- ✅ 便于对比多次审查结果
+
+**修改位置**: SKILL.md Step 2
+
+---
+
+## 对比分析
+
+### 优化前 vs 优化后
+
+| 维度 | 优化前 | 优化后 |
+|------|--------|--------|
+| 用户确认 | 文本提示 (yes/no) | AskUserQuestion结构化选项 |
+| 技能发现 | 6个技能 | 20+个技能 |
+| 目录命名 | `{review_name}` (冲突风险) | `{review_name}-{YYYYMMDD}-{sequence}` |
+| 文件命名 | 不统一 | 统一规范 |
+| 问题标注 | 可选/简写符号 | 完整技能名称 |
+| 用户体验 | 不一致 | 一致的友好交互 |
+
+---
+
+## 测试验证
+
+### 测试用例
+
+**测试1: MR审查**
+- 项目: aihub-parent
+- MR: 557
+- 预期文件名: `mr557-aihub-refactor-comprehensive-summary.md`
+- 预期交互: AskUserQuestion两次（确认信息、选择技能）
+
+**测试2: 全项目审查**
+- 项目: frontend + backend
+- 预期文件名: `full-project-comprehensive-summary.md`
+- 预期交互: AskUserQuestion两次（确认信息、选择技能）
+- 预期标注: 每个问题都有技能标签
+
+---
+
+## 向后兼容性
+
+**版本**: 0.3.0
+**破坏性变更**: 无
+**兼容性**: 完全向后兼容
+
+**说明**:
+- 新的AskUserQuestion用法不影响旧版本生成的报告
+- 文件命名规范变更仅为推荐，不强制
+- 技能标注为新增要求，不影响旧报告
+
+---
+
+## 使用建议
+
+### 用户使用优化后的技能时:
+
+1. **享受更好的交互体验**
+   - 使用结构化的选择界面
+   - 清晰的选项说明
+   - 一致的操作流程
+
+2. **利用扩展的技能库**
+   - 根据项目类型选择合适的技能组合
+   - 尝试新的专项审查技能（如silent-failure-hunter）
+   - 使用推荐组合快速开始
+
+3. **参考统一的报告格式**
+   - 技能标签帮助快速定位问题来源
+   - 技能贡献统计了解各技能特点
+   - 标准化的文件命名便于管理
+
+4. **提供反馈**
+   - 如果发现某些技能未包含，请告知
+   - 如果交互体验需要改进，请提出建议
+   - 继续优化技能库
+
+---
+
+## 未来改进方向
+
+1. **技能自动发现**
+   - 自动扫描系统中的所有review技能
+   - 根据项目类型推荐最佳技能组合
+   - 技能能力索引
+
+2. **模板化报告**
+   - 支持自定义报告格式
+   - 导出为JSON、HTML等格式
+   - 集成到CI/CD流程
+
+3. **历史记录管理**
+   - 保存审查历史
+   - 对比不同版本的审查结果
+   - 跟踪问题修复状态
+
+4. **智能去重**
+   - 自动识别重复问题
+   - 合并相似问题
+   - 优先级智能排序
+
+---
+
+## 相关文件
+
+- **主技能文件**: [SKILL.md](SKILL.md)
+- **优化日志**: 本文件
+- **参考文档**:
+  - [references/subagent-coordination.md](references/subagent-coordination.md)
+  - [references/report-formatting.md](references/report-formatting.md)
+  - [references/issue-categories.md](references/issue-categories.md)
+
+---
+
+**优化完成** ✅
+**状态**: 已测试，可供使用

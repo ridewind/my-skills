@@ -1,7 +1,7 @@
 ---
 name: code-review-orchestrator
 description: This skill should be used when the user asks to "review code", "do a code review", "review my branch", "review MR !1234", "review PR #567", "review feature/auth branch", "review feature/auth vs dev", "check code quality", "review entire project", "review all code", or wants to orchestrate multiple code review skills/subagents. Coordinates parallel code reviews using multiple review skills and generates comprehensive summary reports.
-version: 0.2.1
+version: 0.3.1
 ---
 
 # Code Review Orchestrator
@@ -71,26 +71,75 @@ When user asks to "review entire project" or "review all code":
 
 **🔍 DEBUG [Step 2/6]**: Establishing working directory
 
-Ask user for working directory with default: `{project_root}/reviews/{review_name}`
+**IMPORTANT**: Working directory name MUST include date and sequence number to avoid conflicts.
 
-**Example:**
-- Project: `/home/user/myapp`
-- Review topic: `auth-feature`
-- Working directory: `/home/user/myapp/reviews/auth-feature`
+**Directory Naming Convention**: `{review_name}-{YYYYMMDD}-{sequence}`
+
+**Generate unique working directory**:
+```bash
+# Get current date
+DATE=$(date +%Y%m%d)
+
+# Base directory name
+BASE_DIR="{review_name}-${DATE}"
+
+# Find existing directories with same base
+EXISTING=$(ls -d reviews/${BASE_DIR}-* 2>/dev/null | wc -l)
+
+# Calculate next sequence number
+SEQUENCE=$((EXISTING + 1))
+
+# Final directory name
+WORKING_DIR="${BASE_DIR}-${SEQUENCE}"
+```
+
+**Examples**:
+```
+First review on 2026-01-30:    mr557-aihub-refactor-20260130-1
+Second review on same day:     mr557-aihub-refactor-20260130-2
+First review next day:         mr557-aihub-refactor-20260131-1
+```
+
+**Full path**: `{project_root}/reviews/{review_name}-{YYYYMMDD}-{sequence}`
+
+**Implementation**:
+```bash
+# Example implementation
+project_root="/home/user/myapp"
+review_name="auth-feature"
+date=$(date +%Y%m%d)
+
+# Check for existing reviews today
+existing_dirs=$(find "$project_root/reviews" -maxdepth 1 -name "${review_name}-${date}-*" | wc -l)
+sequence=$((existing_dirs + 1))
+
+working_dir="$project_root/reviews/${review_name}-${date}-${sequence}"
+mkdir -p "$working_dir"
+```
+
+**Ask user for confirmation with generated directory name** (optional, can be auto-generated)
 
 **Directory Structure:**
 ```
-reviews/{review_name}/
-├── code-context.json          # All review metadata
-├── diff.patch                  # Git diff output
-├── commits.json                # Commit history
-├── branch-info.json            # Branch details
-├── reports/                    # Individual skill reports
-│   ├── skill1-report.md
-│   ├── skill2-report.md
-│   └── ...
-└── {review_name}-summary.md    # Final consolidated report
+reviews/{review_name}-{YYYYMMDD}-{sequence}/
+├── code-context.json                     # All review metadata
+├── diff.patch                             # Git diff output
+├── commits.json                           # Commit history
+├── branch-info.json                       # Branch details
+├── DEBUG-SESSION.md                       # Debug session log (always uppercase)
+├── {review_name}-{YYYYMMDD}-{sequence}-comprehensive-summary.md # Final report
+└── reports/                               # Individual skill reports
+    ├── skill1-report.md
+    ├── skill2-report.md
+    └── ...
 ```
+
+**IMPORTANT File Naming Conventions:**
+1. **Working directory**: `{review_name}-{YYYYMMDD}-{sequence}` (date + sequence for uniqueness)
+2. **Summary file**: `{review_name}-{YYYYMMDD}-{sequence}-comprehensive-summary.md` (include date+sequence)
+3. **Debug session file**: `DEBUG-SESSION.md` (always uppercase, fixed name)
+4. **Individual reports**: `{skill-name}-report.md` (use skill's short name)
+5. **Context files**: lowercase with hyphens (code-context.json, diff.patch, etc.)
 
 ### Step 3: Collect and Save Code Content
 
@@ -111,8 +160,10 @@ Collect comprehensive review information and save to working directory:
   "pr_number": "567",
   "repository": "git@gitlab.com:group/project.git",
   "project_path": "/path/to/project",
-  "working_directory": "/path/to/reviews/auth-feature",
-  "timestamp": "2025-01-28T10:00:00Z"
+  "working_directory": "/path/to/reviews/auth-feature-20260130-1",
+  "review_date": "2026-01-30",
+  "review_sequence": 1,
+  "timestamp": "2026-01-30T14:30:22Z"
 }
 ```
 
@@ -155,6 +206,10 @@ Collect comprehensive review information and save to working directory:
 ```json
 {
   "review_type": "full_project",
+  "review_name": "full-project-review",
+  "working_directory": "/path/to/reviews/full-project-review-20260130-1",
+  "review_date": "2026-01-30",
+  "review_sequence": 1,
   "projects": [
     {
       "name": "frontend",
@@ -179,15 +234,37 @@ When comparing branch A vs branch B:
 3. This ensures only unique changes in A are reviewed
 
 **Confirm with User:**
-After collecting code context, present to user:
+After collecting code context, present to user using AskUserQuestion tool:
 
-**🔍 DEBUG [Checkpoint 1]**: Display collected information for confirmation
+**🔍 DEBUG [Checkpoint 1]**: Display collected information and request confirmation
 
+**IMPORTANT**: Use AskUserQuestion tool for user confirmation, not text prompts.
+
+**Example AskUserQuestion call:**
+```python
+AskUserQuestion(
+    questions=[
+        {
+            "question": "代码审查信息已收集，是否继续？",
+            "header": "确认审查",
+            "options": [
+                {
+                    "label": "继续审查",
+                    "description": "开始执行代码审查，启动并行子代理"
+                },
+                {
+                    "label": "取消",
+                    "description": "取消本次审查，退出技能"
+                }
+            ],
+            "multiSelect": false
+        }
+    ]
+)
 ```
-═════════════════════════════════════════════════════════
-📊 Code Review Information Collected
-═════════════════════════════════════════════════════════
 
+**Information to present in question description:**
+```
 Review Type: Full project review
 Projects: 2 projects (frontend, backend)
 
@@ -201,13 +278,10 @@ Backend:
   - LOC: ~7,000
   - Tech Stack: Spring Boot, MyBatis, MySQL
 
-Working Directory: /projects/bupt/reviews/full-project-review
-═════════════════════════════════════════════════════════
-
-Proceed with review? (yes/no)
+Working Directory: /projects/bupt/reviews/full-project-review-20260130-1
 ```
 
-**🔍 DEBUG**: Wait for user confirmation before proceeding
+**🔍 DEBUG**: Wait for user confirmation via AskUserQuestion before proceeding
 
 **DO NOT proceed to Step 4 without user confirmation.**
 
@@ -227,10 +301,24 @@ Look for skills with these patterns in their description:
 **Common review skills:**
 - `code-review:code-review` - General code review
 - `code-review-orchestrator` - Orchestrates parallel reviews (this skill)
-- `pr-review-toolkit:review-pr` - Comprehensive PR review
+- `pr-review-toolkit:review-pr` - Comprehensive PR review with multi-dimensional analysis
+- `pr-review-toolkit:silent-failure-hunter` - Silent failure and error handling detection
+- `pr-review-toolkit:code-simplifier` - Code simplification and clarity analysis
+- `pr-review-toolkit:comment-analyzer` - Comment accuracy and completeness review
+- `pr-review-toolkit:pr-test-analyzer` - Test coverage and quality analysis for PRs
+- `pr-review-toolkit:type-design-analyzer` - Type design and encapsulation review
 - `superpowers:code-reviewer` - Post-development review against plan
-- `security-scanning:security-auditor` - Security vulnerability scan
+- `superpowers:receiving-code-review` - Receiving and implementing code review feedback
 - `code-documentation:code-reviewer` - Elite code review expert
+- `security-scanning:security-auditor` - Security vulnerability scan
+- `security-scanning:threat-modeling-expert` - Threat modeling and security analysis
+- `comprehensive-review:code-reviewer` - Deep code analysis and architecture review
+- `comprehensive-review:architect-review` - Architecture and design pattern review
+- `comprehensive-review:security-auditor` - Comprehensive security audit
+- `code-review-ai:code-review` - AI-powered code review
+- `codebase-cleanup:code-reviewer` - Codebase cleanup and optimization review
+- `feature-dev:code-reviewer` - Feature development code review
+- `feature-dev:code-explorer` - Code exploration and understanding
 
 **Skill Discovery Process:**
 1. Review the list of available skills in system-reminder
@@ -238,33 +326,59 @@ Look for skills with these patterns in their description:
 3. Filter to skills relevant to code review
 4. Present findings to user
 
-**Present options to user:**
+**Present options to user using AskUserQuestion tool:**
 
 **🔍 DEBUG [Checkpoint 2]**: Display discovered skills and request selection
 
-```
-═════════════════════════════════════════════════════════
-🔍 Available Review Skills Discovered
-═════════════════════════════════════════════════════════
+**IMPORTANT**: Use AskUserQuestion tool for skill selection, not text prompts.
 
-Found 4 review skills:
-1. code-review:code-review - General quality review
-2. pr-review-toolkit:review-pr - Comprehensive PR review
-3. security-scanning:security-auditor - Security vulnerability check
-4. superpowers:code-reviewer - Post-development review
+**Example AskUserQuestion call:**
+```python
+# Dynamically build options based on available skills
+skill_options = [
+    {"label": "code-review:code-review", "description": "通用代码质量审查"},
+    {"label": "pr-review-toolkit:review-pr", "description": "全面的PR/MR审查"},
+    {"label": "security-scanning:security-auditor", "description": "安全漏洞扫描"},
+    # ... add more discovered skills
+]
+
+AskUserQuestion(
+    questions=[
+        {
+            "question": f"发现 {len(skill_options)} 个审查技能。请选择要使用的技能：",
+            "header": "选择审查技能",
+            "options": skill_options + [
+                {
+                    "label": "使用所有技能",
+                    "description": "使用所有发现的技能进行全方位审查"
+                },
+                {
+                    "label": "推荐组合",
+                    "description": "使用推荐的技能组合（通用审查 + 安全审查 + PR审查）"
+                }
+            ],
+            "multiSelect": True
+        }
+    ]
+)
+```
+
+**Information to include in question:**
+```
+Found {count} review skills:
+1. skill-name - Brief description
+2. skill-name - Brief description
+...
 
 Projects to review:
-- Frontend (Nuxt.js) - 119 files, ~19,145 LOC
-- Backend (Spring Boot) - 104 files, ~7,062 LOC
+- Project details...
 
-Which skills would you like to use for review? (Select multiple)
 Recommended: Use 2-4 different skills for comprehensive coverage
-═════════════════════════════════════════════════════════
 ```
 
 **🔍 DEBUG**: Show user's skill selection: `[skill1, skill2, ...]`
 
-**Ask user to select which skills to use.**
+**Ask user to select which skills to use using AskUserQuestion.**
 **DO NOT proceed to Step 5 without user skill selection.**
 
 ### Step 5: Launch Parallel Subagents
@@ -423,17 +537,33 @@ Categorizing issues by severity...
 - **Medium**: Code smells, maintainability issues
 - **Low**: Style issues, minor optimizations
 
-**Create `{review_name}-summary.md`:**
+**Create `{review_name}-{YYYYMMDD}-{sequence}-comprehensive-summary.md`:**
+
+**IMPORTANT File Naming Convention:**
+- **Summary file**: `{review_name}-{YYYYMMDD}-{sequence}-comprehensive-summary.md` (include date+sequence)
+- **Debug session file**: `DEBUG-SESSION.md` (always uppercase, fixed name)
 
 **Structure:**
 ```markdown
-# Code Review Summary: {review_name}
+# Code Review Comprehensive Summary: {review_name}
+
+## 🤖 Review Skills Used
+
+This review used multiple AI skills, each analyzing from different perspectives:
+
+| Skill Name | Focus Area | Key Contributions |
+|------------|------------|-------------------|
+| code-review:code-review | 代码质量与最佳实践 | 代码规范、潜在bug、可维护性 |
+| security-scanning:security-auditor | 安全漏洞审计 | OWASP Top 10、注入攻击、认证授权 |
+| pr-review-toolkit:review-pr | 全面PR审查 | 功能完整性、测试覆盖、文档 |
+
+**Total Issues Found**: X issues (after deduplication)
 
 ## Overview
 - Review Type: Branch comparison (feature/auth vs dev)
 - Commits: 5 commits
 - Files changed: 12 files
-- Reviewers: 3 skills
+- Review Skills: 3 skills used in parallel
 - Date: 2025-01-28
 
 ## Findings Summary
@@ -442,12 +572,12 @@ Categorizing issues by severity...
 - Medium: 8 issues
 - Low: 3 issues
 
-## Critical Issues
+## 🔴 Critical Issues
 
 ### 1. SQL Injection Risk in auth/login.js
 - **Location**: `src/auth/login.js:45`
 - **Severity**: Critical
-- **Found by**: security-analyzer
+- **Found by**: code-review:code-review, security-scanning:security-auditor
 - **Issue**: User input directly concatenated into SQL query
 - **Recommendation**: Use parameterized queries
 - **Code snippet**:
@@ -460,9 +590,14 @@ Categorizing issues by severity...
   db.query(query, [username])
   ```
 
-### 2. ...
+### 2. Authentication Bypass
+- **Location**: `src/auth/check.js:12`
+- **Severity**: Critical
+- **Found by**: security-scanning:security-auditor, pr-review-toolkit:review-pr
+- **Issue**: Missing authentication check on admin endpoint
+- **Recommendation**: Add authentication middleware
 
-## High Priority Issues
+## 🟠 High Priority Issues
 
 ### 1. Missing Error Handling in API client
 - **Location**: `src/api/client.js:78`
@@ -471,29 +606,53 @@ Categorizing issues by severity...
 - **Issue**: No try-catch around fetch request
 - **Recommendation**: Add error handling with retry logic
 
-## Medium Priority Issues
+## 🟡 Medium Priority Issues
 
 ### 1. Inconsistent Naming Convention
 - **Location**: Multiple files
 - **Severity**: Medium
-- **Found by**: style-enforcer
+- **Found by**: code-review:code-review
 - **Issue**: Mix of camelCase and snake_case
 - **Recommendation**: Standardize on camelCase
 
-## Low Priority Issues
+## 🟢 Low Priority Issues
 
 ### 1. Unused Imports
 - **Location**: `src/utils/helpers.js:3`
 - **Severity**: Low
+- **Found by**: code-review:code-review
 - **Issue**: Import 'lodash' unused
 - **Recommendation**: Remove unused imports
+
+## 📊 Skill Contributions Summary
+
+### code-review:code-review
+**Issues Found**: X
+**Focus**: 代码质量与最佳实践
+**Key Findings**:
+- Finding 1
+- Finding 2
+
+### security-scanning:security-auditor
+**Issues Found**: Y
+**Focus**: 安全漏洞审计
+**Key Findings**:
+- Finding 1
+- Finding 2
+
+### pr-review-toolkit:review-pr
+**Issues Found**: Z
+**Focus**: 全面PR审查
+**Key Findings**:
+- Finding 1
+- Finding 2
 
 ## Detailed Reports
 
 Individual skill reports:
-- [security-analyzer report](reports/security-analyzer-report.md)
-- [code-review report](reports/code-review-report.md)
-- [performance-checker report](reports/performance-checker-report.md)
+- [code-review:code-review report](reports/code-review-report.md)
+- [security-scanning:security-auditor report](reports/security-auditor-report.md)
+- [pr-review-toolkit:review-pr report](reports/pr-review-report.md)
 ```
 
 ### Step 7: Interactive Issue Resolution
