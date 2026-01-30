@@ -1,7 +1,7 @@
 ---
 name: code-review-orchestrator
 description: This skill should be used when the user asks to "review code", "do a code review", "review my branch", "review MR !1234", "review PR #567", "review feature/auth branch", "review feature/auth vs dev", "check code quality", "review entire project", "review all code", or wants to orchestrate multiple code review skills/subagents. Coordinates parallel code reviews using multiple review skills and generates comprehensive summary reports.
-version: 0.4.0
+version: 0.5.0
 ---
 
 # Code Review Orchestrator
@@ -354,9 +354,9 @@ Working Directory: /projects/bupt/reviews/full-project-review-20260130-1
 
 **DO NOT proceed to Step 4 without user confirmation.**
 
-### Step 4: Discover Available Review Skills
+### Step 4: Discover Available Review Skills (Multi-Round Selection)
 
-**🔍 DEBUG [Step 4/7]**: Discovering available review skills
+**🔍 DEBUG [Step 4/7]**: Discovering available review skills with multi-round selection
 
 **🔍 DEBUG**: Check system-reminder for available skills list
 
@@ -367,101 +367,211 @@ Look for skills with these patterns in their description:
 - "code review", "review code", "review MR/PR"
 - "security", "performance", "quality", "lint"
 
-**Common review skills:**
-- `code-review:code-review` - General code review
-- `code-review-orchestrator` - Orchestrates parallel reviews (this skill)
-- `pr-review-toolkit:review-pr` - Comprehensive PR review with multi-dimensional analysis
-- `pr-review-toolkit:silent-failure-hunter` - Silent failure and error handling detection
-- `pr-review-toolkit:code-simplifier` - Code simplification and clarity analysis
-- `pr-review-toolkit:comment-analyzer` - Comment accuracy and completeness review
-- `pr-review-toolkit:pr-test-analyzer` - Test coverage and quality analysis for PRs
-- `pr-review-toolkit:type-design-analyzer` - Type design and encapsulation review
-- `superpowers:code-reviewer` - Post-development review against plan
-- `superpowers:receiving-code-review` - Receiving and implementing code review feedback
-- `code-documentation:code-reviewer` - Elite code review expert
-- `security-scanning:security-auditor` - Security vulnerability scan
-- `security-scanning:threat-modeling-expert` - Threat modeling and security analysis
-- `comprehensive-review:code-reviewer` - Deep code analysis and architecture review
-- `comprehensive-review:architect-review` - Architecture and design pattern review
-- `comprehensive-review:security-auditor` - Comprehensive security audit
-- `code-review-ai:code-review` - AI-powered code review
-- `codebase-cleanup:code-reviewer` - Codebase cleanup and optimization review
-- `feature-dev:code-reviewer` - Feature development code review
-- `feature-dev:code-explorer` - Code exploration and understanding
+**Skill Category Mapping**:
+Skills are organized into 4 functional categories:
+
+```python
+SKILL_CATEGORIES = {
+    "代码质量": [
+        "code-review:code-review",
+        "comprehensive-review:code-reviewer",
+        "code-review-ai:code-review",
+        "codebase-cleanup:code-reviewer",
+        "feature-dev:code-reviewer",
+        "code-documentation:code-reviewer"
+    ],
+    "安全审计": [
+        "security-scanning:security-auditor",
+        "comprehensive-review:security-auditor",
+        "security-scanning:threat-modeling-expert"
+    ],
+    "性能+架构": [
+        "comprehensive-review:architect-review",
+        "application-performance:performance-engineer",
+        "backend-development:backend-architect",
+        "application-performance:observability-engineer"
+    ],
+    "测试+清理": [
+        "pr-review-toolkit:pr-test-analyzer",
+        "unit-testing:test-automator",
+        "pr-review-toolkit:code-simplifier",
+        "pr-review-toolkit:comment-analyzer",
+        "pr-review-toolkit:type-design-analyzer"
+    ]
+}
+```
 
 **Skill Discovery Process:**
 1. Review the list of available skills in system-reminder
-2. Identify skills whose description mentions "review", "security", "quality", etc.
-3. Filter to skills relevant to code review
-4. Present findings to user
+2. Organize skills into the 4 categories above
+3. Present findings to user in DEBUG output
 
-**Present options to user using AskUserQuestion tool:**
+---
 
-**🔍 DEBUG [Checkpoint 2]**: Display discovered skills and request selection
+### Step 4.1: Display All Skills in DEBUG Output
 
-**IMPORTANT**: Use AskUserQuestion tool for skill selection, not text prompts.
+**🔍 DEBUG [Checkpoint 2.1]**: Display all discovered skills by category
 
-**CRITICAL**:
-- Display ALL discovered skills to the user in DEBUG output
-- Use format: "skill-name: 中文说明" (skill full name + Chinese description)
-- DO NOT translate skill names to Chinese only
+**CRITICAL**: Always display ALL discovered skills in DEBUG output before selection.
 
-**Example AskUserQuestion call:**
+**Example DEBUG output:**
 ```python
-# First, show all discovered skills in DEBUG output
-print("🔍 根据可用的技能列表，我发现以下适合审查的技能：\n")
+print("🔍 发现可用的审查技能\n")
+print("=" * 70)
 
-# Group skills by category
-print("代码质量与架构审查:")
-for skill in code_quality_skills:
-    print(f"  - {skill['name']} - {skill['description']}")
+print("\n**代码质量** (6个技能):")
+for skill in SKILL_CATEGORIES["代码质量"]:
+    print(f"  • {skill}")
 
-print("\n安全审查:")
-for skill in security_skills:
-    print(f"  - {skill['name']} - {skill['description']}")
+print("\n**安全审计** (3个技能):")
+for skill in SKILL_CATEGORIES["安全审计"]:
+    print(f"  • {skill}")
 
-print("\nPR/MR特定审查:")
-for skill in pr_skills:
-    print(f"  - {skill['name']} - {skill['description']}")
+print("\n**性能+架构** (4个技能):")
+for skill in SKILL_CATEGORIES["性能+架构"]:
+    print(f"  • {skill}")
 
-# Then build AskUserQuestion options
-# IMPORTANT: label MUST use full skill name, NOT Chinese translation
-skill_options = [
-    {
-        "label": "code-review:code-review",
-        "description": "通用代码质量审查 - 代码规范、潜在bug、可维护性"
-    },
-    {
-        "label": "security-scanning:security-auditor",
-        "description": "安全漏洞审计 - OWASP Top 10、注入攻击、认证授权"
-    },
-    {
-        "label": "comprehensive-review:architect-review",
-        "description": "架构和设计模式审查 - 架构完整性、可扩展性、设计模式"
-    },
-    {
-        "label": "pr-review-toolkit:pr-test-analyzer",
-        "description": "测试覆盖率和质量分析 - 测试覆盖率、边界情况、最佳实践"
-    },
-    # ... add ALL discovered skills, not just 4
-    # Each option MUST have:
-    #   - label: EXACT skill name (e.g., "code-review-ai:code-review")
-    #   - description: skill name + Chinese description
-]
+print("\n**测试+清理** (5个技能):")
+for skill in SKILL_CATEGORIES["测试+清理"]:
+    print(f"  • {skill}")
 
+print("=" * 70)
+print(f"🔍 共发现 {sum(len(v) for v in SKILL_CATEGORIES.values())} 个审查技能\n")
+```
+
+---
+
+### Step 4.2: Round 1 - Select Review Categories
+
+**🔍 DEBUG [Checkpoint 2.2]**: First round selection - choose categories
+
+**IMPORTANT**: Use AskUserQuestion tool for category selection.
+
+**AskUserQuestion call:**
+```python
 AskUserQuestion(
     questions=[
         {
-            "question": f"发现 {len(skill_options)} 个审查技能。请选择要使用的技能：\n\n**待审查项目**:\n- 前端: Nuxt.js + Vue 2 (~27K 文件)\n- 后端: Spring Boot + MyBatis (~107 Java文件)\n\n**推荐**: 选择 \"推荐组合\" 获得全面覆盖",
-            "header": "选择审查技能",
-            "options": skill_options + [
+            "question": f"""
+请选择审查类别（可多选）:
+
+**代码质量** (6个技能): 代码规范、潜在bug、可维护性、架构分析、代码清理
+**安全审计** (3个技能): 安全漏洞、OWASP Top 10、威胁建模
+**性能+架构** (4个技能): 性能优化、架构审查、设计模式、后端架构
+**测试+清理** (5个技能): 测试覆盖、代码清理、代码简化、注释分析
+
+**待审查项目**:
+- 前端: Nuxt.js + Vue 2 (~118 文件)
+- 后端: Spring Boot + Java 21 (~107 Java文件)
+
+**提示**: 选择多个类别可以进行更全面的审查
+""",
+            "header": "审查类别",
+            "options": [
                 {
-                    "label": "使用所有技能",
-                    "description": "使用所有发现的技能进行全方位审查（耗时较长）"
+                    "label": "代码质量",
+                    "description": "包含 code-review, comprehensive-reviewer, code-review-ai, codebase-cleanup, feature-dev, code-documentation"
                 },
                 {
-                    "label": "推荐组合",
-                    "description": "推荐组合 - code-review:code-review + security-scanning:security-auditor + comprehensive-review:architect-review + pr-review-toolkit:pr-test-analyzer"
+                    "label": "安全审计",
+                    "description": "包含 security-auditor, comprehensive-security, threat-modeling-expert"
+                },
+                {
+                    "label": "性能+架构",
+                    "description": "包含 architect-review, performance-engineer, backend-architect, observability-engineer"
+                },
+                {
+                    "label": "测试+清理",
+                    "description": "包含 pr-test-analyzer, test-automator, code-simplifier, comment-analyzer, type-design-analyzer"
+                }
+            ],
+            "multiSelect": True
+        }
+    ]
+)
+```
+
+**🔍 DEBUG**: Show user's category selection: `["代码质量", "安全审计"]`
+
+---
+
+### Step 4.3: Round 2 - Select Specific Skills
+
+**🔍 DEBUG [Checkpoint 2.3]**: Second round selection - choose specific skills
+
+For each category selected in Round 1, present specific skills.
+
+**Example: User selected "代码质量" category**
+
+```python
+AskUserQuestion(
+    questions=[
+        {
+            "question": """
+请选择**代码质量**类别的具体技能（可多选）:
+
+**通用审查**: code-review:code-review - 代码规范、bug、可维护性
+**深度分析**: comprehensive-review:code-reviewer - 架构、设计模式
+**AI驱动**: code-review-ai:code-review - AI增强的代码审查
+**代码清理**: codebase-cleanup:code-reviewer - 优化、简化
+**功能开发**: feature-dev:code-reviewer - 功能开发审查
+**文档审查**: code-documentation:code-reviewer - 精英代码审查
+""",
+            "header": "代码质量技能",
+            "options": [
+                {
+                    "label": "code-review:code-review",
+                    "description": "通用代码质量 - 代码规范、bug、可维护性"
+                },
+                {
+                    "label": "comprehensive-review:code-reviewer",
+                    "description": "深度代码分析 - 架构、设计模式"
+                },
+                {
+                    "label": "codebase-cleanup:code-reviewer",
+                    "description": "代码清理 - 优化、简化"
+                },
+                {
+                    "label": "使用全部代码质量技能",
+                    "description": "使用该类别下的所有6个技能"
+                }
+            ],
+            "multiSelect": True
+        }
+    ]
+)
+```
+
+**Example: User selected "安全审计" category**
+
+```python
+AskUserQuestion(
+    questions=[
+        {
+            "question": """
+请选择**安全审计**类别的具体技能（可多选）:
+
+**安全漏洞**: security-scanning:security-auditor - OWASP Top 10、注入攻击
+**综合安全**: comprehensive-review:security-auditor - 全面安全分析
+**威胁建模**: security-scanning:threat-modeling-expert - 安全架构分析
+""",
+            "header": "安全审计技能",
+            "options": [
+                {
+                    "label": "security-scanning:security-auditor",
+                    "description": "安全漏洞 - OWASP Top 10、注入攻击"
+                },
+                {
+                    "label": "comprehensive-review:security-auditor",
+                    "description": "综合安全审计 - 全面安全分析"
+                },
+                {
+                    "label": "security-scanning:threat-modeling-expert",
+                    "description": "威胁建模 - 安全架构分析"
+                },
+                {
+                    "label": "使用全部安全审计技能",
+                    "description": "使用该类别下的所有3个技能"
                 }
             ],
             "multiSelect": True
@@ -471,13 +581,14 @@ AskUserQuestion(
 ```
 
 **CRITICAL Rules for Skill Selection:**
-1. **Always display ALL discovered skills in DEBUG output** before showing AskUserQuestion
-2. **Use "skill-name: 中文说明" format** in DEBUG output
-3. **AskUserQuestion label MUST be exact skill name** (e.g., "code-review:code-review", NOT "通用代码审查")
-4. **Description should contain both skill name and Chinese description** for clarity
-5. **Include project details in the question** to help user choose appropriate skills
+1. **Multi-round selection**: First select categories, then select specific skills
+2. **Always display ALL skills in DEBUG output** before selection
+3. **AskUserQuestion label MUST be exact skill name** (e.g., "code-review:code-review")
+4. **Use multiSelect: True** for both rounds
+5. **Offer "使用全部[类别]技能" option** for convenience
+6. **Include project details** to help user choose appropriate skills
 
-**🔍 DEBUG**: Show user's skill selection: `[skill1, skill2, ...]`
+**🔍 DEBUG**: Show final skill selection: `["code-review:code-review", "security-scanning:security-auditor", ...]`
 
 **Ask user to select which skills to use using AskUserQuestion.**
 **DO NOT proceed to Step 5 without user skill selection.**
