@@ -1,7 +1,7 @@
 ---
 name: code-review-orchestrator
 description: This skill should be used when the user asks to "review code", "do a code review", "review my branch", "review MR !1234", "review PR #567", "review feature/auth branch", "review feature/auth vs dev", "check code quality", "review entire project", "review all code", or wants to orchestrate multiple code review skills/subagents. Coordinates parallel code reviews using multiple review skills and generates comprehensive summary reports.
-version: 0.3.1
+version: 0.3.2
 ---
 
 # Code Review Orchestrator
@@ -332,29 +332,67 @@ Look for skills with these patterns in their description:
 
 **IMPORTANT**: Use AskUserQuestion tool for skill selection, not text prompts.
 
+**CRITICAL**:
+- Display ALL discovered skills to the user in DEBUG output
+- Use format: "skill-name: 中文说明" (skill full name + Chinese description)
+- DO NOT translate skill names to Chinese only
+
 **Example AskUserQuestion call:**
 ```python
-# Dynamically build options based on available skills
+# First, show all discovered skills in DEBUG output
+print("🔍 根据可用的技能列表，我发现以下适合审查的技能：\n")
+
+# Group skills by category
+print("代码质量与架构审查:")
+for skill in code_quality_skills:
+    print(f"  - {skill['name']} - {skill['description']}")
+
+print("\n安全审查:")
+for skill in security_skills:
+    print(f"  - {skill['name']} - {skill['description']}")
+
+print("\nPR/MR特定审查:")
+for skill in pr_skills:
+    print(f"  - {skill['name']} - {skill['description']}")
+
+# Then build AskUserQuestion options
+# IMPORTANT: label MUST use full skill name, NOT Chinese translation
 skill_options = [
-    {"label": "code-review:code-review", "description": "通用代码质量审查"},
-    {"label": "pr-review-toolkit:review-pr", "description": "全面的PR/MR审查"},
-    {"label": "security-scanning:security-auditor", "description": "安全漏洞扫描"},
-    # ... add more discovered skills
+    {
+        "label": "code-review:code-review",
+        "description": "通用代码质量审查 - 代码规范、潜在bug、可维护性"
+    },
+    {
+        "label": "security-scanning:security-auditor",
+        "description": "安全漏洞审计 - OWASP Top 10、注入攻击、认证授权"
+    },
+    {
+        "label": "comprehensive-review:architect-review",
+        "description": "架构和设计模式审查 - 架构完整性、可扩展性、设计模式"
+    },
+    {
+        "label": "pr-review-toolkit:pr-test-analyzer",
+        "description": "测试覆盖率和质量分析 - 测试覆盖率、边界情况、最佳实践"
+    },
+    # ... add ALL discovered skills, not just 4
+    # Each option MUST have:
+    #   - label: EXACT skill name (e.g., "code-review-ai:code-review")
+    #   - description: skill name + Chinese description
 ]
 
 AskUserQuestion(
     questions=[
         {
-            "question": f"发现 {len(skill_options)} 个审查技能。请选择要使用的技能：",
+            "question": f"发现 {len(skill_options)} 个审查技能。请选择要使用的技能：\n\n**待审查项目**:\n- 前端: Nuxt.js + Vue 2 (~27K 文件)\n- 后端: Spring Boot + MyBatis (~107 Java文件)\n\n**推荐**: 选择 \"推荐组合\" 获得全面覆盖",
             "header": "选择审查技能",
             "options": skill_options + [
                 {
                     "label": "使用所有技能",
-                    "description": "使用所有发现的技能进行全方位审查"
+                    "description": "使用所有发现的技能进行全方位审查（耗时较长）"
                 },
                 {
                     "label": "推荐组合",
-                    "description": "使用推荐的技能组合（通用审查 + 安全审查 + PR审查）"
+                    "description": "推荐组合 - code-review:code-review + security-scanning:security-auditor + comprehensive-review:architect-review + pr-review-toolkit:pr-test-analyzer"
                 }
             ],
             "multiSelect": True
@@ -363,18 +401,12 @@ AskUserQuestion(
 )
 ```
 
-**Information to include in question:**
-```
-Found {count} review skills:
-1. skill-name - Brief description
-2. skill-name - Brief description
-...
-
-Projects to review:
-- Project details...
-
-Recommended: Use 2-4 different skills for comprehensive coverage
-```
+**CRITICAL Rules for Skill Selection:**
+1. **Always display ALL discovered skills in DEBUG output** before showing AskUserQuestion
+2. **Use "skill-name: 中文说明" format** in DEBUG output
+3. **AskUserQuestion label MUST be exact skill name** (e.g., "code-review:code-review", NOT "通用代码审查")
+4. **Description should contain both skill name and Chinese description** for clarity
+5. **Include project details in the question** to help user choose appropriate skills
 
 **🔍 DEBUG**: Show user's skill selection: `[skill1, skill2, ...]`
 
@@ -623,6 +655,14 @@ This review used multiple AI skills, each analyzing from different perspectives:
 - **Found by**: code-review:code-review
 - **Issue**: Import 'lodash' unused
 - **Recommendation**: Remove unused imports
+
+**CRITICAL TEMPLATE RULES**:
+1. **EVERY issue MUST include "Found by" field**
+2. Use **complete skill names** (e.g., "code-review:code-review, security-scanning:security-auditor")
+3. Use **comma separation** for multiple skills
+4. **DO NOT use abbreviations** or symbols (not "[CR]", "[SA]", etc.)
+5. If unsure which skill found it, check the individual skill reports
+6. If multiple skills found same issue, list ALL of them in "Found by"
 
 ## 📊 Skill Contributions Summary
 

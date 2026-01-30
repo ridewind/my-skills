@@ -10,6 +10,7 @@
 
 | 版本 | 日期 | 更新内容 |
 |------|------|----------|
+| 0.3.2 | 2026-01-30 | 修复技能选择界面和总结报告模板 |
 | 0.3.1 | 2026-01-30 | 工作目录命名优化（日期+序号），避免重复审查冲突 |
 | 0.3.0 | 2026-01-30 | 优化用户确认、技能发现、文件命名、问题标注（完整技能名称） |
 | 0.2.1 | 2026-01-29 | 初始版本，支持并行审查 |
@@ -205,18 +206,110 @@ WORKING_DIR="${BASE_DIR}-${SEQUENCE}"
 
 ---
 
+### 6. 技能选择界面优化 ✅
+
+**问题**: 实际使用中发现两个问题
+1. 只显示4个技能选项，但DEBUG日志显示发现了20+个技能
+2. AskUserQuestion的label使用中文翻译（如"通用代码审查"），而非"技能原名+中文说明"格式
+
+**解决方案**: 完善技能选择界面，确保：
+1. 在DEBUG输出中显示所有发现的技能（按分类展示）
+2. AskUserQuestion的label使用完整的技能原名
+3. Description包含"技能原名+中文说明"格式
+
+**修改前**:
+```python
+# 只给4个选项，label用中文翻译
+skill_options = [
+    {"label": "通用代码审查", "description": "代码质量与最佳实践"},
+    {"label": "安全审查", "description": "安全漏洞扫描"},
+    {"label": "架构审查", "description": "架构和设计模式"},
+    {"label": "测试分析", "description": "测试覆盖率分析"}
+]
+```
+
+**修改后**:
+```python
+# 先显示所有发现的技能
+print("🔍 根据可用的技能列表，我发现以下适合审查的技能：\n")
+print("代码质量与架构审查:")
+for skill in code_quality_skills:
+    print(f"  - {skill['name']} - {skill['description']}")
+# ... 其他分类
+
+# AskUserQuestion使用完整技能名
+skill_options = [
+    {
+        "label": "code-review:code-review",  # 完整技能名
+        "description": "通用代码质量审查 - 代码规范、潜在bug、可维护性"
+    },
+    {
+        "label": "security-scanning:security-auditor",  # 完整技能名
+        "description": "安全漏洞审计 - OWASP Top 10、注入攻击、认证授权"
+    },
+    # ... 所有发现的技能
+]
+```
+
+**关键规则**:
+- DEBUG输出: 使用 "技能原名: 中文说明" 格式
+- AskUserQuestion label: 必须是完整技能名（如"code-review:code-review"）
+- AskUserQuestion description: 包含技能名+中文说明，便于理解
+
+**修改位置**: SKILL.md Step 4
+
+---
+
+### 7. 总结报告问题标注强制化 ✅
+
+**问题**: 实际使用中发现
+- mr557报告有标注（"security-auditor发现"），但使用的是简称
+- full-project报告完全缺少"Found by"字段
+- 技能表格存在，但具体问题没有标注来源
+
+**解决方案**: 在模板中添加强制规则，确保每个问题都有"Found by"字段
+
+**模板规则**:
+```markdown
+### 1. SQL Injection Risk in auth/login.js
+- **Location**: `src/auth/login.js:45`
+- **Severity**: Critical
+- **Found by**: code-review:code-review, security-scanning:security-auditor
+- **Issue**: User input directly concatenated into SQL query
+- **Recommendation**: Use parameterized queries
+```
+
+**强制规则**:
+1. **每个问题必须包含 "Found by" 字段**
+2. 使用**完整技能名称**（如"code-review:code-review"）
+3. 多个技能用**逗号分隔**
+4. **不使用简写符号**（如[CR]、[SA]）
+5. 如果不确定，检查各个技能的单独报告
+
+**修改位置**: SKILL.md Step 6
+
+---
+
 ## 对比分析
 
 ### 优化前 vs 优化后
 
-| 维度 | 优化前 | 优化后 |
+| 维度 | 优化前 (0.3.1) | 优化后 (0.3.2) |
 |------|--------|--------|
-| 用户确认 | 文本提示 (yes/no) | AskUserQuestion结构化选项 |
-| 技能发现 | 6个技能 | 20+个技能 |
-| 目录命名 | `{review_name}` (冲突风险) | `{review_name}-{YYYYMMDD}-{sequence}` |
-| 文件命名 | 不统一 | 统一规范 |
-| 问题标注 | 可选/简写符号 | 完整技能名称 |
-| 用户体验 | 不一致 | 一致的友好交互 |
+| 用户确认 | AskUserQuestion结构化选项 | AskUserQuestion结构化选项 |
+| 技能发现显示 | 20+个技能，但只显示4个选项 | DEBUG显示所有技能，完整展示 |
+| 技能选择格式 | 中文翻译（"通用代码审查"） | 技能原名+说明（"code-review:code-review"） |
+| 问题标注 | 可选/简写符号/缺失 | 强制标注完整技能名称 |
+| 总结报告 | 部分报告缺少"Found by" | 每个问题都有"Found by"字段 |
+| 用户体验 | 一致的友好交互 | 更清晰、更完整的信息展示 |
+
+### 历史版本对比
+
+| 版本 | 主要改进 |
+|------|----------|
+| 0.2.1 → 0.3.0 | 用户确认AskUserQuestion、技能发现扩展到20+、文件命名统一、问题标注完整技能名称 |
+| 0.3.0 → 0.3.1 | 工作目录命名优化（日期+序号），避免重复审查冲突 |
+| 0.3.1 → 0.3.2 | 技能选择界面优化（显示所有技能、原名格式）、总结报告问题标注强制化 |
 
 ---
 
