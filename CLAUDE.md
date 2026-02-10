@@ -132,17 +132,13 @@ chmod +x skills/*/scripts/*.sh
 
 ## Existing Skills
 
-This repository contains two code review frameworks with different approaches:
+This repository contains code review skills with different approaches:
 
-### code-review
+### code-review:config-manager
 
-**Configuration-driven modular code review framework.**
+**Configuration manager for code review skills.**
 
-A preset-based code review system with two sub-skills:
-
-**Sub-skills:**
-- **code-review:config-manager** - Manages review skills configuration (skill discovery, presets, validation)
-- **code-review:executor** - Executes parallel code reviews using configured presets
+Manages review skills configuration, skill discovery, presets, and validation.
 
 **Configuration System:**
 - Three-tier priority: project > user > global
@@ -153,21 +149,36 @@ A preset-based code review system with two sub-skills:
 
 **Key features:**
 - Skill auto-discovery and categorization
-- Preset-based review configuration (快速审查, 全面审查, 安全优先, etc.)
-- Multi-skill parallel execution
-- Configuration merging across tiers
+- Preset management (create, edit, delete presets)
+- Configuration validation and merging
+- Multi-tier configuration support
 
-**Bundled scripts (config-manager):**
+**Bundled scripts:**
 - `scripts/init-config.sh` - Initialize configuration files
 - `scripts/validate-config.sh` - Validate YAML syntax and structure
 - `scripts/merge-configs.sh` - Merge multi-tier configurations
 
-**Bundled scripts (executor):**
+**Directory:** [skills/code-review:config-manager/](skills/code-review:config-manager/)
+
+### code-review:executor
+
+**Code review executor with parallel skill orchestration.**
+
+Executes parallel code reviews using configured presets from config-manager.
+
+**Key workflow:**
+1. Load and validate configuration file
+2. Select review preset
+3. Collect code content (diffs, commits, branches)
+4. Coordinate multiple subagents using configured skills
+5. Consolidate reports into comprehensive summary
+
+**Bundled scripts:**
 - `scripts/collect-review-data.sh` - Collect code data
 - `scripts/find-merge-base.sh` - Find merge base for branch comparison
 - `scripts/launch-subagents.sh` - Generate Task commands for parallel review
 
-**Directory:** [skills/code-review/](skills/code-review/)
+**Directory:** [skills/code-review:executor/](skills/code-review:executor/)
 
 ### code-review-orchestrator
 
@@ -189,15 +200,25 @@ An ad-hoc code review system with multi-round skill selection and flexible skill
 
 **Directory:** [skills/code-review-orchestrator/](skills/code-review-orchestrator/)
 
-### Choosing Between code-review and code-review-orchestrator
+### Choosing Between Review Skills
 
-| Feature | code-review | code-review-orchestrator |
-|---------|-------------|--------------------------|
+| Feature | code-review:executor | code-review-orchestrator |
+|---------|---------------------|--------------------------|
 | **Configuration** | Preset-based, file-driven | Interactive, ad-hoc |
 | **Skill selection** | Pre-configured presets | Multi-round discovery |
-| **Setup required** | Yes (config-manager first run) | No (auto-discovery) |
+| **Setup required** | Yes (config-manager first) | No (auto-discovery) |
 | **Best for** | Teams, consistent workflows | Individuals, flexible reviews |
 | **Configuration persistence** | Yes (3-tier system) | No (session-based) |
+
+**Installation:**
+```bash
+# Configuration-driven (requires both skills)
+npx skills add ridewind/my-skills --skill code-review:config-manager -g -y
+npx skills add ridewind/my-skills --skill code-review:executor -g -y
+
+# Interactive orchestrator
+npx skills add ridewind/my-skills --skill code-review-orchestrator -g -y
+```
 
 ## Important Files
 

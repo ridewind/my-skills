@@ -1,5 +1,5 @@
 ---
-name: executor
+name: code-review:executor
 description: This skill should be used when the user asks to "review code", "do a code review", "review my branch", "review MR !1234", "review PR #567", "review feature/auth branch", "review feature/auth vs dev", "check code quality", or wants to execute code review using configured skill presets. Reads review skills configuration and orchestrates parallel code reviews.
 version: 0.1.0
 ---
