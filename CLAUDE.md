@@ -132,23 +132,72 @@ chmod +x skills/*/scripts/*.sh
 
 ## Existing Skills
 
+This repository contains two code review frameworks with different approaches:
+
+### code-review
+
+**Configuration-driven modular code review framework.**
+
+A preset-based code review system with two sub-skills:
+
+**Sub-skills:**
+- **code-review:config-manager** - Manages review skills configuration (skill discovery, presets, validation)
+- **code-review:executor** - Executes parallel code reviews using configured presets
+
+**Configuration System:**
+- Three-tier priority: project > user > global
+- Locations:
+  - Project: `.claude/code-review-skills/config.yaml`
+  - User: `~/.claude/code-review-skills/config.yaml`
+  - Global: `~/.config/claude/code-review-skills/config.yaml`
+
+**Key features:**
+- Skill auto-discovery and categorization
+- Preset-based review configuration (快速审查, 全面审查, 安全优先, etc.)
+- Multi-skill parallel execution
+- Configuration merging across tiers
+
+**Bundled scripts (config-manager):**
+- `scripts/init-config.sh` - Initialize configuration files
+- `scripts/validate-config.sh` - Validate YAML syntax and structure
+- `scripts/merge-configs.sh` - Merge multi-tier configurations
+
+**Bundled scripts (executor):**
+- `scripts/collect-review-data.sh` - Collect code data
+- `scripts/find-merge-base.sh` - Find merge base for branch comparison
+- `scripts/launch-subagents.sh` - Generate Task commands for parallel review
+
+**Directory:** [skills/code-review/](skills/code-review/)
+
 ### code-review-orchestrator
 
-Orchestrates comprehensive code reviews by coordinating multiple review skills in parallel.
+**Interactive code review orchestrator with free-form skill selection.**
+
+An ad-hoc code review system with multi-round skill selection and flexible skill choice.
 
 **Key workflow:**
 1. Collect code data (diff, commits, branch info) from git
-2. Discover available review skills
-3. Launch parallel subagents using different skills
-4. Consolidate reports into severity-categorized summary
-5. Help fix identified issues
+2. Discover available review skills via system-reminder
+3. Multi-round selection: categories → specific skills
+4. Launch parallel subagents using selected skills
+5. Consolidate reports into severity-categorized summary
+6. Generate optional debug session log (DEBUG-SESSION.md)
 
 **Critical detail:** Branch comparison uses three-dot diff (`git diff A...B`) from merge base, not two-dot diff.
 
-**Bundled scripts:**
-- `scripts/collect-review-data.sh` - Automates data collection
-- `scripts/find-merge-base.sh` - Finds merge base for branch comparison
-- `scripts/launch-subagents.sh` - Generates Task commands for parallel review
+**Debug mode:** Automatically enabled via keywords (debug, verbose, 调试, 详细) or interactive confirmation.
+
+**Directory:** [skills/code-review-orchestrator/](skills/code-review-orchestrator/)
+
+### Choosing Between code-review and code-review-orchestrator
+
+| Feature | code-review | code-review-orchestrator |
+|---------|-------------|--------------------------|
+| **Configuration** | Preset-based, file-driven | Interactive, ad-hoc |
+| **Skill selection** | Pre-configured presets | Multi-round discovery |
+| **Setup required** | Yes (config-manager first run) | No (auto-discovery) |
+| **Best for** | Teams, consistent workflows | Individuals, flexible reviews |
+| **Configuration persistence** | Yes (3-tier system) | No (session-based) |
 
 ## Important Files
 
@@ -201,3 +250,40 @@ When coordinating multiple subagents:
 5. Read and consolidate all results
 
 See `code-review-orchestrator/references/subagent-coordination.md` for detailed patterns.
+
+### Review Working Directory Pattern
+
+Code review skills use a standardized directory naming convention to avoid conflicts:
+
+**Format:** `{review_name}-{YYYYMMDD}-{sequence}`
+
+**Generation logic:**
+```bash
+DATE=$(date +%Y%m%d)
+BASE_DIR="{review_name}-${DATE}"
+EXISTING=$(ls -d reviews/${BASE_DIR}-* 2>/dev/null | wc -l)
+SEQUENCE=$((EXISTING + 1))
+WORKING_DIR="${BASE_DIR}-${SEQUENCE}"
+```
+
+**Directory structure:**
+```
+reviews/{review_name}-{YYYYMMDD}-{sequence}/
+├── code-context.json                     # Review metadata
+├── diff.patch                             # Git diff output
+├── commits.json                           # Commit history
+├── branch-info.json                       # Branch details
+├── DEBUG-SESSION.md                       # Debug session log (optional)
+├── {review_name}-{YYYYMMDD}-{sequence}-comprehensive-summary.md # Final report
+└── reports/                               # Individual skill reports
+    ├── skill1-report.md
+    ├── skill2-report.md
+    └── ...
+```
+
+**File naming conventions:**
+- **Working directory**: `{review_name}-{YYYYMMDD}-{sequence}` (date + sequence for uniqueness)
+- **Summary file**: `{review_name}-{YYYYMMDD}-{sequence}-comprehensive-summary.md` (include date+sequence)
+- **Debug session file**: `DEBUG-SESSION.md` (always uppercase, fixed name)
+- **Individual reports**: `{skill-name}-report.md` (use skill's short name)
+- **Context files**: lowercase with hyphens (code-context.json, diff.patch, etc.)
