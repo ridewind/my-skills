@@ -1,7 +1,7 @@
 ---
 name: code-review:config-manager
 description: This skill should be used when the user asks to "manage review skills config", "update review skills", "discover review skills", "manage review presets", "validate review config", or mentions managing code review skills configuration. Use for configuration management tasks.
-version: 0.1.0
+version: 0.1.1
 ---
 
 # Code Review 配置管理器
