@@ -87,6 +87,18 @@ validate_required_fields() {
         echo -e "${GREEN}✓ available_skills 字段存在${NC}"
     fi
 
+    # 检查 skills_directories（可选）
+    if ! yq eval '.skills_directories' "$config_file" > /dev/null 2>&1; then
+        echo -e "${YELLOW}⚠ skills_directories 字段缺失（将使用默认搜索策略）${NC}"
+    else
+        echo -e "${GREEN}✓ skills_directories 字段存在${NC}"
+
+        # 验证目录是否存在
+        local dir_count
+        dir_count=$(yq eval '.skills_directories | length' "$config_file")
+        echo -e "${GREEN}  配置了 $dir_count 个 skills 搜索目录${NC}"
+    fi
+
     # 检查 presets
     if ! yq eval '.presets' "$config_file" > /dev/null 2>&1; then
         echo -e "${RED}✗ 缺少 presets 字段${NC}"

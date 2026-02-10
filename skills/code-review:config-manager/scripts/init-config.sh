@@ -78,6 +78,14 @@ metadata:
   last_updated: null  # 将在首次更新时设置
   auto_sync: true     # 是否自动同步 skills
 
+# Skills 搜索目录配置
+# 支持相对路径（相对于配置文件所在目录）和绝对路径
+skills_directories:
+  - "skills"           # 默认：项目内的 skills 目录
+  # - ".skills"          # 可选：隐藏的 skills 目录
+  # - "../other-skills"  # 可选：其他项目的 skills 目录
+  # - "~/.claude/skills" # 可选：用户级 skills 目录
+
 # 可用的 code review skills
 # 此列表由 discover-skills.sh 自动生成和更新
 available_skills: []

@@ -73,13 +73,50 @@ version: 0.1.0
 
 扫描环境中所有可用的 skills，识别与 code review 相关的技能。
 
-#### 2.1 扫描可用 Skills
+#### 2.1 确定 Skills 搜索目录
 
-使用 Glob 工具查找所有 SKILL.md 文件：
+**首先**，读取配置文件中的 `skills_directories` 字段。
 
+如果配置文件中没有此字段或为空，使用以下默认策略：
+
+**策略 1: 优先搜索项目内的 skills 目录**
 ```
-Glob: **/SKILL.md
+Glob: skills/**/SKILL.md
+Glob: .skills/**/SKILL.md
 ```
+
+**策略 2: 如果策略 1 未找到，搜索更广泛的范围但排除常见无关目录**
+```
+Glob: */SKILL.md
+Glob: */*/SKILL.md
+```
+
+**排除的无关目录**:
+- node_modules/
+- .git/
+- vendor/
+- dist/
+- build/
+- target/
+- __pycache__/
+- .venv/
+
+**策略 3: 询问用户 skills 位置**
+
+如果前两种策略都找不到足够的 skills，询问用户 skills 目录的路径。
+
+**添加自定义搜索目录:**
+
+如果用户需要搜索其他位置的 skills，编辑配置文件添加 `skills_directories` 字段：
+
+```yaml
+skills_directories:
+  - "skills"              # 项目内 skills 目录
+  - "../my-skills/skills"  # 其他项目的 skills 目录
+  - "~/.claude/skills"     # 用户级 skills 目录
+```
+
+使用 Glob 工具对每个目录执行 `**/SKILL.md` 搜索（限制在指定目录内）。
 
 #### 2.2 识别 Review 相关 Skills
 
@@ -342,6 +379,14 @@ metadata:
   version: "0.1.0"
   last_updated: "2025-01-15"
   auto_sync: true
+
+# Skills 搜索目录配置
+# 支持相对路径（相对于配置文件所在目录）和绝对路径
+skills_directories:
+  - "skills"           # 默认：项目内的 skills 目录
+  # - ".skills"          # 可选：隐藏的 skills 目录
+  # - "../other-skills"  # 可选：其他项目的 skills 目录
+  # - "~/.claude/skills" # 可选：用户级 skills 目录
 
 available_skills:
   - id: "code-review:code-review"
