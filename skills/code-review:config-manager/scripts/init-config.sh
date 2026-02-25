@@ -124,6 +124,20 @@ EOF
     echo "1. 运行 discover-skills.sh 自动发现并更新 available_skills"
     echo "2. 编辑 presets 配置你常用的 skill 组合"
     echo "3. 运行 validate-config.sh 验证配置"
+
+    # 询问是否立即运行 discover-skills.sh
+    echo ""
+    read -p "是否立即自动发现 skills? (Y/n): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
+        local script_dir
+        script_dir=$(dirname "${BASH_SOURCE[0]}")
+        if [ -f "$script_dir/discover-skills.sh" ]; then
+            bash "$script_dir/discover-skills.sh" "$path"
+        else
+            echo -e "${YELLOW}⚠${NC} discover-skills.sh 未找到，请稍后手动运行"
+        fi
+    fi
 }
 
 # 主函数
