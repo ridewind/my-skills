@@ -132,7 +132,7 @@ chmod +x skills/*/scripts/*.sh
 
 ## Existing Skills
 
-This repository contains code review skills with different approaches:
+This repository contains code review skills with a two-skill architecture:
 
 ### code-review:config-manager
 
@@ -155,6 +155,7 @@ Manages review skills configuration, skill discovery, presets, and validation.
 
 **Bundled scripts:**
 - `scripts/init-config.sh` - Initialize configuration files
+- `scripts/discover-skills.sh` - Auto-discover review skills
 - `scripts/validate-config.sh` - Validate YAML syntax and structure
 - `scripts/merge-configs.sh` - Merge multi-tier configurations
 
@@ -176,48 +177,40 @@ Executes parallel code reviews using configured presets from config-manager.
 **Bundled scripts:**
 - `scripts/collect-review-data.sh` - Collect code data
 - `scripts/find-merge-base.sh` - Find merge base for branch comparison
-- `scripts/launch-subagents.sh` - Generate Task commands for parallel review
 
 **Directory:** [skills/code-review:executor/](skills/code-review:executor/)
 
-### code-review-orchestrator
+### Architecture Overview
 
-**Interactive code review orchestrator with free-form skill selection.**
-
-An ad-hoc code review system with multi-round skill selection and flexible skill choice.
-
-**Key workflow:**
-1. Collect code data (diff, commits, branch info) from git
-2. Discover available review skills via system-reminder
-3. Multi-round selection: categories → specific skills
-4. Launch parallel subagents using selected skills
-5. Consolidate reports into severity-categorized summary
-6. Generate optional debug session log (DEBUG-SESSION.md)
-
-**Critical detail:** Branch comparison uses three-dot diff (`git diff A...B`) from merge base, not two-dot diff.
-
-**Debug mode:** Automatically enabled via keywords (debug, verbose, 调试, 详细) or interactive confirmation.
-
-**Directory:** [skills/code-review-orchestrator/](skills/code-review-orchestrator/)
-
-### Choosing Between Review Skills
-
-| Feature | code-review:executor | code-review-orchestrator |
-|---------|---------------------|--------------------------|
-| **Configuration** | Preset-based, file-driven | Interactive, ad-hoc |
-| **Skill selection** | Pre-configured presets | Multi-round discovery |
-| **Setup required** | Yes (config-manager first) | No (auto-discovery) |
-| **Best for** | Teams, consistent workflows | Individuals, flexible reviews |
-| **Configuration persistence** | Yes (3-tier system) | No (session-based) |
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    code-review:executor                      │
+│              (Review Execution & Orchestration)              │
+├─────────────────────────────────────────────────────────────┤
+│  1. Load configuration from config-manager                   │
+│  2. Select review preset                                     │
+│  3. Collect code content (diffs, commits, branches)          │
+│  4. Launch parallel subagents with configured skills         │
+│  5. Consolidate reports into comprehensive summary           │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 code-review:config-manager                   │
+│                (Configuration Management)                    │
+├─────────────────────────────────────────────────────────────┤
+│  • Three-tier configuration (project > user > global)        │
+│  • Auto-discover available review skills                     │
+│  • Manage presets (quick review, full review, security...)   │
+│  • Validate configuration files                              │
+└─────────────────────────────────────────────────────────────┘
+```
 
 **Installation:**
 ```bash
-# Configuration-driven (requires both skills)
+# Install both skills for configuration-driven reviews
 npx skills add ridewind/my-skills --skill code-review:config-manager -g -y
 npx skills add ridewind/my-skills --skill code-review:executor -g -y
-
-# Interactive orchestrator
-npx skills add ridewind/my-skills --skill code-review-orchestrator -g -y
 ```
 
 ## Important Files
@@ -270,7 +263,7 @@ When coordinating multiple subagents:
 4. Wait for all to complete using TaskOutput tool
 5. Read and consolidate all results
 
-See `code-review-orchestrator/references/subagent-coordination.md` for detailed patterns.
+See `code-review:executor/references/subagent-coordination.md` for detailed patterns.
 
 ### Review Working Directory Pattern
 

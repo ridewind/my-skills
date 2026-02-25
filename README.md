@@ -4,78 +4,141 @@ A monorepo of Claude Code skills for specialized workflows and code review orche
 
 ## Skills
 
-### code-review-orchestrator
+### code-review:config-manager
 
-**Orchestrates comprehensive code reviews by coordinating multiple review skills and subagents in parallel.**
+**Configuration manager for code review skills.**
 
-This skill manages the complete code review workflow:
-- Collects code content from branches, MRs, or PRs
-- Coordinates parallel subagent reviews using different skills
-- Consolidates findings into actionable summary reports
-- Helps identify and fix issues
+Manages review skills configuration, skill discovery, presets, and validation.
+
+**When to use:**
+- "Manage review skills config"
+- "Update review skills"
+- "Discover review skills"
+- "Manage review presets"
+- "Validate review config"
+
+**Features:**
+- Three-tier configuration priority (project > user > global)
+- Automatic skill discovery and categorization
+- Preset management (create, edit, delete presets)
+- Configuration validation and merging
+
+**Configuration Locations:**
+- Project: `.claude/code-review-skills/config.yaml`
+- User: `~/.claude/code-review-skills/config.yaml`
+- Global: `~/.config/claude/code-review-skills/config.yaml`
+
+**Directory:** [skills/code-review:config-manager/](skills/code-review:config-manager/)
+
+---
+
+### code-review:executor
+
+**Code review executor with preset-based skill orchestration.**
+
+Executes parallel code reviews using configured presets from config-manager.
 
 **When to use:**
 - "Review my code"
 - "Review feature/auth branch"
 - "Review MR !1234" / "Review PR #567"
 - "Review feature/auth vs dev branch"
+- "Do a code review"
 
 **Features:**
 - Branch comparison with proper merge-base detection
 - Support for GitLab MR and GitHub PR reviews
 - Multi-skill parallel review execution
 - Comprehensive issue categorization (Critical, High, Medium, Low)
-- Interactive issue resolution workflow
+- Debug mode with detailed session logging
 
-**Directory:** [skills/code-review-orchestrator/](skills/code-review-orchestrator/)
+**Directory:** [skills/code-review:executor/](skills/code-review:executor/)
+
+---
+
+## Architecture
+
+The code review system uses a two-skill architecture:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    code-review:executor                      │
+│              (Review Execution & Orchestration)              │
+├─────────────────────────────────────────────────────────────┤
+│  1. Load configuration from config-manager                   │
+│  2. Select review preset                                     │
+│  3. Collect code content (diffs, commits, branches)          │
+│  4. Launch parallel subagents with configured skills         │
+│  5. Consolidate reports into comprehensive summary           │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 code-review:config-manager                   │
+│                (Configuration Management)                    │
+├─────────────────────────────────────────────────────────────┤
+│  • Three-tier configuration (project > user > global)        │
+│  • Auto-discover available review skills                     │
+│  • Manage presets (quick review, full review, security...)   │
+│  • Validate configuration files                              │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ## Quick Start
 
-### Using code-review-orchestrator
+### 1. Initialize Configuration
 
-1. **Trigger the skill:**
-   ```
-   Review the feature/auth branch compared to dev
-   ```
+```
+Manage review skills config
+```
 
-2. **The skill will:**
-   - Ask for working directory (default: `{project}/reviews/{review-name}`)
-   - Collect code diff, commits, and metadata
-   - Discover available review skills
-   - Launch parallel subagents for review
-   - Generate consolidated summary report
+This will:
+- Create configuration file at project/user/global level
+- Auto-discover available review skills
+- Set up default presets
 
-3. **Review the output:**
-   - Individual skill reports in `{workdir}/reports/`
-   - Consolidated summary in `{workdir}/{review-name}-summary.md`
+### 2. Execute Code Review
 
-### Scripts
+```
+Review the feature/auth branch compared to dev
+```
 
-The skill includes utility scripts in `scripts/`:
+The executor will:
+- Load configuration and presets
+- Ask you to select a preset
+- Collect code diff, commits, and metadata
+- Launch parallel subagents for review
+- Generate consolidated summary report
 
-- **collect-review-data.sh** - Collects code review data from git
-- **find-merge-base.sh** - Finds merge base between branches
-- **launch-subagents.sh** - Generates Task commands for parallel review
+### 3. Review Output
+
+- Individual skill reports: `{workdir}/reports/`
+- Consolidated summary: `{workdir}/{review-name}-comprehensive-summary.md`
+- Debug session log: `{workdir}/DEBUG-SESSION.md` (if debug mode enabled)
 
 ## Project Structure
 
 ```
 my-skills/
 ├── skills/
-│   └── code-review-orchestrator/
-│       ├── SKILL.md                          # Main skill instructions
-│       ├── references/                       # Detailed reference docs
-│       │   ├── subagent-coordination.md      # Subagent coordination guide
-│       │   ├── report-formatting.md          # Report structure standards
-│       │   └── issue-categories.md           # Severity classification
-│       ├── examples/                         # Working examples
-│       │   ├── code-context-example.json     # Sample code context
-│       │   └── summary-example.md            # Sample summary report
-│       └── scripts/                          # Utility scripts
-│           ├── collect-review-data.sh
-│           ├── find-merge-base.sh
-│           └── launch-subagents.sh
-└── README.md
+│   ├── code-review:config-manager/
+│   │   ├── SKILL.md              # Main skill instructions
+│   │   ├── references/           # Detailed reference docs
+│   │   └── scripts/
+│   │       ├── init-config.sh    # Initialize configuration
+│   │       ├── discover-skills.sh # Auto-discover skills
+│   │       ├── validate-config.sh # Validate configuration
+│   │       └── merge-configs.sh  # Merge multi-tier configs
+│   │
+│   └── code-review:executor/
+│       ├── SKILL.md              # Main skill instructions
+│       ├── references/           # Detailed reference docs
+│       └── scripts/
+│           ├── collect-review-data.sh  # Collect git data
+│           └── find-merge-base.sh      # Find merge base
+│
+├── CLAUDE.md                     # Project instructions
+└── README.md                     # This file
 ```
 
 ## Development
@@ -100,7 +163,6 @@ my-skills/
 
 4. Test the skill:
    ```bash
-   # Test locally with Claude Code
    cc --plugin-dir /path/to/my-skills
    ```
 
