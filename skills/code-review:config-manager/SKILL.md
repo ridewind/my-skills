@@ -1,12 +1,20 @@
 ---
 name: code-review:config-manager
 description: This skill should be used when the user asks to "manage review skills config", "update review skills", "discover review skills", "manage review presets", "validate review config", or mentions managing code review skills configuration. Use for configuration management tasks.
-version: 0.1.1
 ---
 
 # Code Review 配置管理器
 
-管理 code review skills 的配置文件，包括自动发现 skills、管理预设配置、验证配置等。
+管理 code review skills 和 commands 的配置文件，包括自动发现能力、管理预设配置、验证配置等。
+
+## 能力类型
+
+配置管理器支持两种类型的 review 能力：
+
+- **skill**: SKILL.md 格式的技能文件
+- **command**: 插件中的命令（`~/.claude/plugins/cache/*/commands/*.md`）
+
+**自动排除**: 发现过程中会自动排除自身（`code-review:config-manager` 和 `code-review:executor`），避免循环依赖。
 
 ## 配置文件位置
 
@@ -69,11 +77,31 @@ version: 0.1.1
 
 ---
 
-### Step 2: 自动发现并更新 Skills
+### Step 2: 自动发现并更新 Review 能力
 
-扫描环境中所有可用的 skills，识别与 code review 相关的技能。
+扫描环境中所有可用的 skills 和 commands，识别与 code review 相关的能力。
 
-#### 2.1 确定 Skills 搜索目录
+**首先运行自动发现脚本：**
+
+```bash
+./scripts/discover-skills.sh [配置文件路径]
+```
+
+如果未指定配置文件路径，脚本会自动按优先级查找（项目 > 用户 > 全局）。
+
+脚本会自动完成以下工作：
+- 读取配置文件中的 `skills_directories` 字段确定搜索目录
+- 扫描所有 SKILL.md 文件（skills）
+- 扫描 `~/.claude/plugins/cache/` 下的所有 commands
+- 识别 review 相关的能力（通过关键词过滤）
+- 自动排除自身（`code-review:config-manager`, `code-review:executor`）
+- 对相同 ID 的 commands 去重（保留最新版本）
+- 提取能力元信息（name、description、category、tags、type）
+- 更新配置文件的 `available_skills` 部分（保留用户已编辑的 presets）
+
+**如果脚本执行失败或用户需要手动控制，按以下步骤操作：**
+
+#### 2.1 确定 Skills 搜索目录（手动备选）
 
 **首先**，读取配置文件中的 `skills_directories` 字段。
 
@@ -101,9 +129,19 @@ Glob: */*/SKILL.md
 - __pycache__/
 - .venv/
 
-**策略 3: 询问用户 skills 位置**
+**策略 3: 搜索插件 commands**
 
-如果前两种策略都找不到足够的 skills，询问用户 skills 目录的路径。
+搜索 `~/.claude/plugins/cache/` 目录下的 commands：
+```
+Glob: ~/.claude/plugins/cache/*/commands/*.md
+Glob: ~/.claude/plugins/cache/*/*/commands/*.md
+```
+
+排除 `temp_git*` 和 `.orphaned_at` 目录。
+
+**策略 4: 询问用户 skills 位置**
+
+如果前几种策略都找不到足够的能力，询问用户 skills 目录的路径。
 
 **添加自定义搜索目录:**
 
@@ -118,11 +156,11 @@ skills_directories:
 
 使用 Glob 工具对每个目录执行 `**/SKILL.md` 搜索（限制在指定目录内）。
 
-#### 2.2 识别 Review 相关 Skills
+#### 2.2 识别 Review 相关能力（手动备选）
 
-对每个 SKILL.md 文件，使用 Read 工具读取 frontmatter（`---` 之间的内容）。
+对每个 SKILL.md 文件和 command 文件，使用 Read 工具读取 frontmatter（`---` 之间的内容）。
 
-通过关键词判断是否是 review 相关的 skill：
+通过关键词判断是否是 review 相关的能力：
 - review, auditor, reviewer
 - security, audit, threat
 - test, testing, coverage
@@ -131,13 +169,17 @@ skills_directories:
 
 同时检查 description 中是否包含这些关键词。
 
-#### 2.3 提取 Skill 元信息
+**排除自身**: 跳过 `code-review:config-manager` 和 `code-review:executor`。
 
-对于每个识别出的 skill，提取以下信息：
+#### 2.3 提取能力元信息（手动备选）
+
+对于每个识别出的能力，提取以下信息：
 
 ```yaml
-id: "skill:name"           # 从 SKILL.md 的 name 字段
+id: "plugin:command-name"   # 对于 command: plugin:command
+id: "skill:name"            # 对于 skill: 从 SKILL.md 的 name 字段
 name: "显示名称"            # 从 name 字段
+type: "skill" | "command"   # 能力类型
 category: "分类"            # 根据 description 推断
 description: "描述"         # 从 description 字段
 tags: ["tag1", "tag2"]      # 从 description 推断
@@ -151,9 +193,9 @@ recommended_for: ["场景"]   # 基于 category 和 description
 - 包含 "code-quality", "lint", "cleanup" → "代码质量"
 - 其他 → "代码质量"
 
-#### 2.4 更新配置文件
+#### 2.4 更新配置文件（手动备选）
 
-将提取的 skills 添加到配置文件的 `available_skills` 部分。
+将提取的能力添加到配置文件的 `available_skills` 部分。
 
 **重要**: 更新时需要保留用户已编辑的 presets。
 
@@ -163,23 +205,25 @@ recommended_for: ["场景"]   # 基于 category 和 description
 
 ```yaml
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   last_updated: "2025-01-15"  # 当前日期
 
 available_skills:
   - id: "code-review:code-review"
-    name: "基础代码审查"
-    category: "代码质量"
+    name: "code-review:code-review"
+    type: "command"
+    category: "安全审计"
     description: "..."
-    tags: ["basic", "quality"]
+    tags: ["review", "security"]
     recommended_for: ["所有项目"]
-  # ... 更多 skills
+  # ... 更多能力
 ```
 
 #### 2.5 显示更新结果
 
 向用户报告：
 - 发现了多少个 skills
+- 发现了多少个 commands
 - 按分类分组显示
 - 更新的配置文件路径
 
@@ -331,6 +375,15 @@ available_skills:
 
 配置管理器提供以下脚本工具：
 
+### discover-skills.sh
+自动发现并更新 code review skills 到配置文件。
+
+```bash
+./scripts/discover-skills.sh [配置文件路径]
+```
+
+如果未指定配置文件路径，脚本会自动按优先级查找（项目 > 用户 > 全局）。
+
 ### init-config.sh
 初始化配置文件，创建默认配置。
 
@@ -376,7 +429,7 @@ available_skills:
 
 ```yaml
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   last_updated: "2025-01-15"
   auto_sync: true
 
@@ -388,12 +441,23 @@ skills_directories:
   # - "../other-skills"  # 可选：其他项目的 skills 目录
   # - "~/.claude/skills" # 可选：用户级 skills 目录
 
+# 可用的 code review skills 和 commands
+# type 字段标识能力类型: skill 或 command
 available_skills:
   - id: "code-review:code-review"
-    name: "基础代码审查"
-    category: "代码质量"
+    name: "code-review:code-review"
+    type: "command"
+    category: "安全审计"
     description: "检查代码质量问题"
-    tags: ["basic", "quality"]
+    tags: ["review", "security"]
+    recommended_for: ["所有项目"]
+
+  - id: "pr-review-toolkit:review-pr"
+    name: "pr-review-toolkit:review-pr"
+    type: "command"
+    category: "测试+清理"
+    description: "PR 审查工具"
+    tags: ["review", "pr"]
     recommended_for: ["所有项目"]
 
 presets:

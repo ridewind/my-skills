@@ -1,12 +1,11 @@
 ---
 name: code-review:executor
 description: This skill should be used when the user asks to "review code", "do a code review", "review my branch", "review MR !1234", "review PR #567", "review feature/auth branch", "review feature/auth vs dev", "check code quality", or wants to execute code review using configured skill presets. Reads review skills configuration and orchestrates parallel code reviews.
-version: 0.1.0
 ---
 
 # Code Review Executor
 
-执行代码审查，读取配置文件中的 skill 预设，协调多个 subagents 并行执行审查，生成综合报告。
+执行代码审查，读取配置文件中的 skill/command 预设，协调多个 subagents 并行执行审查，生成综合报告。
 
 ## Purpose
 
@@ -14,8 +13,17 @@ version: 0.1.0
 - 加载并验证配置文件
 - 让用户选择审查预设
 - 收集代码内容（diffs, commits, branches）
-- 协调多个 subagents 并行执行
+- 协调多个 subagents 并行执行（支持 skills 和 commands）
 - 汇总审查结果生成综合报告
+
+## 能力类型
+
+Executor 支持调用两种类型的 review 能力：
+
+- **skill**: SKILL.md 格式的技能，通过 Task 工具的 subagent_type 调用
+- **command**: 插件中的命令，通过 Skill 工具调用
+
+配置文件中的 `type` 字段标识能力类型，Executor 需要根据类型选择正确的调用方式。
 
 ## When to Use
 
@@ -381,16 +389,28 @@ AskUserQuestion(
 
 ### Step 6: 并行执行审查
 
-启动多个 subagents 并行执行审查，每个使用配置的 skill。
+启动多个 subagents 并行执行审查，根据能力类型选择调用方式。
 
 #### 6.1 准备 Subagent 任务
 
-对于选中的预设中的每个 skill：
-- 从 `available_skills` 获取 skill 的详细信息
-- 准备 skill 专用的 prompt
+对于选中的预设中的每个能力：
+- 从 `available_skills` 获取能力的详细信息
+- 检查 `type` 字段确定能力类型（skill 或 command）
+- 准备能力专用的 prompt
 - 设置输出文件路径
 
-#### 6.2 启动并行 Subagents
+#### 6.2 根据能力类型选择调用方式
+
+**对于 skill 类型**:
+使用 Task 工具启动 subagent，设置 `run_in_background=true`
+
+**对于 command 类型**:
+使用 Task 工具包装 Skill 调用，实现并行执行
+
+**推荐方式 - 统一使用 Task 包装**:
+无论 skill 还是 command 类型，都使用 Task 工具启动 subagent，在 prompt 中指明如何调用。
+
+#### 6.3 启动并行 Subagents
 
 使用 Task 工具启动 subagents，设置 `run_in_background=true`：
 
@@ -398,29 +418,30 @@ AskUserQuestion(
 
 **示例 Task 调用**:
 ```xml
-<!-- 第一个 subagent -->
-Task subagent_type="general-purpose"
-     prompt="使用 code-review:code-review skill 审查以下代码..."
-     run_in_background="true"
-     description="Review code with code-review skill">
+<!-- 第一个 subagent - skill 类型 -->
+<Task subagent_type="general-purpose"
+      prompt="使用 code-review:code-review skill 审查以下代码..."
+      run_in_background="true"
+      description="Review code with code-review skill">
 
-<!-- 第二个 subagent -->
-Task subagent_type="general-purpose"
-     prompt="使用 security-scanning:security-auditor skill 审查以下代码..."
-     run_in_background="true"
-     description="Review code with security-auditor skill">
+<!-- 第二个 subagent - command 类型（使用 Skill 工具调用） -->
+<Task subagent_type="general-purpose"
+      prompt="使用 Skill 工具调用 pr-review-toolkit:review-pr 命令执行 PR 审查..."
+      run_in_background="true"
+      description="Review with review-pr command">
 
 <!-- 第三个 subagent -->
-Task subagent_type="general-purpose"
-     prompt="使用 application-performance:performance-engineer skill 审查以下代码..."
-     run_in_background="true"
-     description="Review code with performance-engineer skill">
+<Task subagent_type="general-purpose"
+      prompt="使用 security-scanning:security-auditor skill 审查以下代码..."
+      run_in_background="true"
+      description="Review code with security-auditor skill">
 ```
 
 **Subagent Prompt 结构**:
 ```
-使用 {skill_id} skill 审查以下代码变更。
+使用 {ability_id} {type} 审查以下代码变更。
 
+能力类型: {type} (skill/command)
 上下文信息:
 - 工作目录: {working_directory}
 - 审查类型: {review_type}
@@ -429,8 +450,8 @@ Task subagent_type="general-purpose"
 - 分支信息: branch-info.json
 
 请:
-1. 使用 {skill_id} skill 执行审查
-2. 将报告保存到 {working_directory}/reports/{skill-name}-report.md
+1. 使用 {ability_id} 执行审查（如果是 command 类型，使用 Skill 工具调用）
+2. 将报告保存到 {working_directory}/reports/{ability-name}-report.md
 3. 使用参考文档中定义的报告格式
 4. 标注问题发现位置和严重程度
 ```
@@ -600,14 +621,14 @@ for report in reports:
 - 列出可用的预设
 - 让用户重新选择
 
-### Skill 不可用
-- 警告用户该 skill 在当前环境中不可用
-- 询问是否跳过该 skill 或取消审查
+### Skill/Command 不可用
+- 警告用户该能力在当前环境中不可用
+- 询问是否跳过该能力或取消审查
 
 ### Subagent 执行失败
 - 记录失败详情
 - 继续执行其他 subagents
-- 在最终报告中标注失败的 skill
+- 在最终报告中标注失败的能力
 
 ---
 
@@ -617,16 +638,28 @@ Executor 依赖以下配置文件结构：
 
 ```yaml
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   last_updated: "2025-01-15"
   auto_sync: true
 
+# 能力类型说明:
+# - skill: SKILL.md 格式的技能
+# - command: 插件中的命令
 available_skills:
   - id: "code-review:code-review"
-    name: "基础代码审查"
-    category: "代码质量"
+    name: "code-review:code-review"
+    type: "command"
+    category: "安全审计"
     description: "..."
-    tags: ["basic", "quality"]
+    tags: ["review", "security"]
+    recommended_for: ["所有项目"]
+
+  - id: "pr-review-toolkit:review-pr"
+    name: "pr-review-toolkit:review-pr"
+    type: "command"
+    category: "测试+清理"
+    description: "PR 审查工具"
+    tags: ["review", "pr"]
     recommended_for: ["所有项目"]
 
 presets:
@@ -634,6 +667,7 @@ presets:
     description: "..."
     skills:
       - "code-review:code-review"
+      - "pr-review-toolkit:review-pr"
 ```
 
 ---
@@ -641,7 +675,8 @@ presets:
 ## 注意事项
 
 1. **配置优先级**: 始终先检查项目级配置，然后用户级，最后全局级
-2. **并行执行**: 所有 subagents 必须在单个消息中启动以实现真正的并行
-3. **用户确认**: 在启动 subagents 前必须获得用户确认
-4. **文件命名**: 工作目录和报告文件必须包含日期和序列号
-5. **错误恢复**: 如果某个 subagent 失败，继续执行其他 subagents 并在报告中标注
+2. **能力类型**: 根据配置中的 `type` 字段选择正确的调用方式（skill 用 Task，command 用 Skill 工具）
+3. **并行执行**: 所有 subagents 必须在单个消息中启动以实现真正的并行
+4. **用户确认**: 在启动 subagents 前必须获得用户确认
+5. **文件命名**: 工作目录和报告文件必须包含日期和序列号
+6. **错误恢复**: 如果某个 subagent 失败，继续执行其他 subagents 并在报告中标注
