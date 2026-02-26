@@ -115,11 +115,16 @@ infer_tags() {
     fi
 
     # 转换为 JSON 数组格式
-    local result=$(printf '"%s"' "${tags[@]}" | tr ' ' ',' | sed 's/,$//')
-    if [ -z "$result" ]; then
+    if [ ${#tags[@]} -eq 0 ]; then
         echo "[]"
+    elif [ ${#tags[@]} -eq 1 ]; then
+        echo "[\"${tags[0]}\"]"
     else
-        echo "[$result]"
+        # 多个元素：用逗号连接
+        local result
+        result=$(printf '"%s",' "${tags[@]}")
+        # 移除末尾的逗号并加上方括号
+        echo "[${result%,}]"
     fi
 }
 
