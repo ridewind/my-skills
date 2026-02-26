@@ -7,6 +7,21 @@ description: This skill should be used when the user asks to "review code", "do 
 
 执行代码审查，读取配置文件中的 skill/command 预设，协调多个 subagents 并行执行审查，生成综合报告。
 
+## 文件写入规范
+
+**重要**: 在此技能执行过程中，所有文件写入操作必须使用 **Write 工具**，而不是通过 Bash 工具执行 `cat >` 等 shell 命令。
+
+**Write 工具的使用场景**:
+- 保存 JSON 配置文件（code-context.json, commits.json, branch-info.json）
+- 保存 Markdown 报告（DEBUG-SESSION.md, 综合报告, skill 报告）
+- 任何需要创建或修改文件的场景
+
+**Bash 工具的使用场景**:
+- 查询信息（git log, git diff, ls）
+- 移动/复制文件
+- 创建目录
+- 执行 shell 脚本
+
 ## Purpose
 
 管理完整的代码审查执行流程：
@@ -51,7 +66,7 @@ Executor 支持调用两种类型的 review 能力：
 - 时间戳和进度跟踪
 - 完整的交互历史
 
-**输出**: 保存到工作目录的 `DEBUG-SESSION.md`
+**输出**: 使用 Write 工具保存到工作目录的 `DEBUG-SESSION.md`
 
 ---
 
@@ -283,68 +298,95 @@ AskUserQuestion(
 
 收集完整的审查信息并保存到工作目录。
 
-**使用 `scripts/collect-review-data.sh`** 自动化数据收集。
+---
 
-**保存为 `code-context.json`:**
-```json
-{
-  "review_type": "branch_comparison|branch|mr|pr",
-  "source_branch": "feature/auth",
-  "target_branch": "dev",
-  "merge_base": "abc123",
-  "mr_number": "!1234",
-  "pr_number": "567",
-  "repository": "git@gitlab.com:group/project.git",
-  "project_path": "/path/to/project",
-  "working_directory": "/path/to/reviews/auth-feature-20260130-1",
-  "review_date": "2026-01-30",
-  "review_sequence": 1,
-  "timestamp": "2026-01-30T14:30:22Z"
-}
+#### 5.1 优先使用 collect-review-data.sh 脚本
+
+首先尝试使用 `scripts/collect-review-data.sh` 脚本自动化收集所有数据。
+
+**脚本会自动生成**:
+- code-context.json：审查元数据
+- diff.patch：Git diff 输出
+- commits.json：提交历史
+- branch-info.json：分支详情
+
+**脚本执行命令**:
+```bash
+# 使用 Bash 工具执行脚本
+bash scripts/collect-review-data.sh -s <source_branch> -t <target_branch> -o <working_directory>
 ```
 
-**保存为 `diff.patch`:**
-- 使用 `git diff merge_base...source_branch` 进行分支对比
-- 使用 `git diff dev...feature/auth` 格式（三个点）找到正确的 merge base
-- 包含完整上下文用于审查
+**如果脚本成功执行**: 跳转到 Step 5.2 检查收集结果并继续。
 
-**保存为 `commits.json`:**
-```json
-{
-  "commits": [
-    {
-      "hash": "def456",
-      "author": "John Doe",
-      "date": "2025-01-28T09:00:00Z",
-      "message": "Add login form",
-      "files_changed": ["src/auth/login.js"]
-    }
-  ]
-}
+**如果脚本失败**: 继续使用 Step 5.3 的手动回退方案。
+
+---
+
+#### 5.2 检查收集结果
+
+验证脚本生成的数据文件：
+```bash
+# 使用 Glob 工具检查文件
+Glob(path="{working_directory}", pattern="*.{json,patch}")
 ```
 
-**保存为 `branch-info.json`:**
-```json
-{
-  "source_branch": {
-    "name": "feature/auth",
-    "head_commit": "def456",
-    "is_merged": false
-  },
-  "target_branch": {
-    "name": "dev",
-    "head_commit": "abc123"
-  }
-}
+确保以下文件存在：
+- code-context.json
+- diff.patch
+- commits.json
+- branch-info.json
+
+**如果所有文件都存在**: 继续进行用户确认。
+
+---
+
+#### 5.3 手动回退方案（脚本失败时）
+
+如果 `collect-review-data.sh` 脚本执行失败，使用本节的手动方法收集数据。
+
+**重要**: 所有文件写入操作必须使用 **Write 工具**，不要使用 `cat > file` 等重定向命令。
+
+##### 收集分支和 Git 信息
+
+使用 Bash 工具执行 git 命令获取信息：
+```bash
+git rev-parse --show-toplevel            # 获取项目根目录
+git config --get remote.origin.url       # 获取仓库 URL
+git merge-base <target> <source>         # 获取 merge base
 ```
 
-**分支对比的关键点**:
-对比分支 A vs 分支 B 时：
-1. 找到 merge base: `git merge-base A B`
-2. 从 merge base 到 A 进行 diff: `git diff merge_base...A`
-3. 确保只审查 A 中的独特变更
+##### 用 Write 工具保存 code-context.json
 
-**向用户确认**:
+构建 JSON 内容并使用 Write 工具保存。
+
+##### 用 Write 工具保存 commits.json
+
+使用 Bash 工具获取提交信息，然后用 Write 工具保存。
+
+```bash
+# 获取提交列表（pipe 分隔）
+git log <merge_base>..<source> --pretty=format:'%H|%an|%ad|%s' --date=iso
+
+# 然后用 Write 工具保存为 JSON 格式
+```
+
+##### 用 Write 工具保存 branch-info.json
+
+使用 Git 命令获取分支信息，然后用 Write 工具保存。
+
+##### 用 Bash 工具获取 diff 并用 Write 工具保存
+
+```bash
+# 获取 diff 输出
+git diff <merge_base>...<source>
+
+# 使用 Write 工具保存（先读取 Bash 输出，再用 Write 保存）
+```
+
+---
+
+#### 5.4 向用户确认
+
 收集完代码上下文后，使用 AskUserQuestion 工具呈现给用户：
 
 **示例 AskUserQuestion 调用**:
@@ -362,6 +404,28 @@ AskUserQuestion(
                 {
                     "label": "取消",
                     "description": "取消本次审查，退出技能"
+                }
+            ],
+            "multiSelect": False
+        }
+    ]
+)
+```
+
+**问题描述中呈现的信息**:
+```
+审查类型: 分支对比
+源分支: feature/auth
+目标分支: dev
+
+变更统计:
+- 15 个文件修改
+- +350 行, -120 行
+
+工作目录: /path/to/reviews/auth-feature-20260130-1
+```
+
+**等待用户确认后继续，不要在没有用户确认的情况下继续到 Step 6。**
                 }
             ],
             "multiSelect": False
@@ -451,7 +515,7 @@ AskUserQuestion(
 
 请:
 1. 使用 {ability_id} 执行审查（如果是 command 类型，使用 Skill 工具调用）
-2. 将报告保存到 {working_directory}/reports/{ability-name}-report.md
+2. 使用 Write 工具将报告保存到 {working_directory}/reports/{ability-name}-report.md
 3. 使用参考文档中定义的报告格式
 4. 标注问题发现位置和严重程度
 ```
@@ -476,7 +540,7 @@ for task_id in task_ids:
 #### 6.4 处理失败的任务
 
 如果某个 subagent 失败：
-- 记录失败信息到 DEBUG-SESSION.md
+- 使用 Write 工具记录失败信息到 DEBUG-SESSION.md
 - 继续等待其他 subagents
 - 在最终报告中标注该 skill 审查失败
 
@@ -488,10 +552,12 @@ for task_id in task_ids:
 
 #### 7.1 读取所有报告
 
-从 `reports/` 目录读取所有生成的报告：
+使用 Glob 工具获取 `reports/` 目录中的报告文件列表：
 ```bash
-ls reports/*-report.md
+Glob(path="{working_directory}/reports", pattern="*-report.md")
 ```
+
+使用 Read 工具读取每个报告的内容。
 
 #### 7.2 解析报告内容
 
@@ -528,7 +594,7 @@ for report in reports:
 
 #### 7.5 生成综合报告
 
-生成 `{review_name}-{YYYYMMDD}-{sequence}-comprehensive-summary.md`
+使用 Write 工具生成 `{review_name}-{YYYYMMDD}-{sequence}-comprehensive-summary.md`
 
 **报告格式**:
 ```markdown

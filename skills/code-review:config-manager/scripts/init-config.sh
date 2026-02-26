@@ -1,12 +1,14 @@
 #!/bin/bash
 # init-config.sh - 初始化配置文件
 #
-# 用法: ./init-config.sh [--global|--user|--project] [路径]
+# 用法: ./init-config.sh [--global|--user|--project|--force] [路径]
 #
 # 选项:
 #   --global   创建全局配置 (~/.config/claude/code-review-skills/config.yaml)
 #   --user     创建用户配置 (~/.claude/code-review-skills/config.yaml)
 #   --project  创建项目配置 (.claude/code-review-skills/config.yaml)
+#   --force    强制覆盖已存在的配置文件，无需确认
+#   --skip-discover 跳过自动发现 skills 步骤
 #
 # 如果未指定选项，默认创建项目配置
 
@@ -49,6 +51,8 @@ determine_path() {
 create_default_config() {
     local path="$1"
     local dir
+    local force_mode="${FORCE_MODE:-false}"
+    local skip_discover="${SKIP_DISCOVER:-false}"
     dir=$(dirname "$path")
 
     # 创建目录
@@ -60,11 +64,22 @@ create_default_config() {
     # 检查文件是否已存在
     if [ -f "$path" ]; then
         echo -e "${YELLOW}⚠${NC} 配置文件已存在: $path"
-        read -p "是否覆盖? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            echo "操作已取消"
-            exit 0
+        if [ "$force_mode" = "true" ]; then
+            echo -e "${YELLOW}⚠${NC} 使用 --force 模式，将覆盖现有配置"
+        else
+            # 检查是否在交互式终端
+            if [ -t 0 ]; then
+                read -p "是否覆盖? (y/N): " -n 1 -r
+                echo
+                if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                    echo "操作已取消"
+                    exit 0
+                fi
+            else
+                echo -e "${YELLOW}⚠${NC} 非交互式环境，使用 --force 选项覆盖"
+                echo "操作已取消（使用 --force 强制覆盖）"
+                exit 1
+            fi
         fi
     fi
 
@@ -127,16 +142,23 @@ EOF
 
     # 询问是否立即运行 discover-skills.sh
     echo ""
-    read -p "是否立即自动发现 skills? (Y/n): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
-        local script_dir
-        script_dir=$(dirname "${BASH_SOURCE[0]}")
-        if [ -f "$script_dir/discover-skills.sh" ]; then
-            bash "$script_dir/discover-skills.sh" "$path"
-        else
-            echo -e "${YELLOW}⚠${NC} discover-skills.sh 未找到，请稍后手动运行"
+    if [ "$skip_discover" = "true" ]; then
+        echo -e "${BLUE}ℹ${NC} 跳过自动发现 skills"
+    elif [ -t 0 ]; then
+        read -p "是否立即自动发现 skills? (Y/n): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
+            local script_dir
+            script_dir=$(dirname "${BASH_SOURCE[0]}")
+            if [ -f "$script_dir/discover-skills.sh" ]; then
+                bash "$script_dir/discover-skills.sh" "$path"
+            else
+                echo -e "${YELLOW}⚠${NC} discover-skills.sh 未找到，请稍后手动运行"
+            fi
         fi
+    else
+        echo -e "${BLUE}ℹ${NC} 非交互式环境，跳过自动发现"
+        echo "   （使用 --skip-discover 跳过或手动运行 discover-skills.sh）"
     fi
 }
 
@@ -144,12 +166,22 @@ EOF
 main() {
     local option=""
     local custom_path=""
+    local force=false
+    local skip_discover=false
 
     # 解析参数
     while [[ $# -gt 0 ]]; do
         case $1 in
             --global|--user|--project)
                 option="$1"
+                shift
+                ;;
+            --force|-f)
+                force=true
+                shift
+                ;;
+            --skip-discover|-s)
+                skip_discover=true
                 shift
                 ;;
             *)
@@ -162,6 +194,8 @@ main() {
     # 确定路径
     local config_path
     config_path=$(determine_path "$option" "$custom_path")
+    export FORCE_MODE="$force"
+    export SKIP_DISCOVER="$skip_discover"
 
     echo -e "${BLUE}初始化 Code Review 配置${NC}"
     echo "================================"

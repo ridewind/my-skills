@@ -76,6 +76,30 @@ description: This skill should be used when the user asks to "create a hook", "a
 - Automation scripts
 - May execute without loading into context
 - Should be well-documented and error-handled
+- Designed to minimize file write operations in skills
+
+## Code Review Skills - File Writing Guidelines
+
+**Important**: Code review skills must follow specific file writing rules to minimize authorization prompts.
+
+### File Writing Principles
+
+1. **Prioritize Scripts**: Use existing scripts (e.g., `collect-review-data.sh`) to collect data and generate files in one operation
+2. **Use Write Tool for Manual File Creation**: When scripts are not available, use the Write tool instead of Bash with redirection (`cat > file`, `echo > file`)
+3. **Bash for Queries Only**: Use Bash tool for read-only operations (git log, git diff, ls, etc.) and script execution
+
+### When to Use Write Tool
+
+- Saving JSON configuration files (code-context.json, commits.json, branch-info.json)
+- Saving Markdown reports (DEBUG-SESSION.md, comprehensive reports, skill reports)
+- Any file that needs to be created by the AI
+
+### When to Use Bash Tool
+
+- Querying information (git log, git diff, find, ls, etc.)
+- Creating/moving directories
+- Executing shell scripts that handle file generation internally
+- File operations without content modification
 
 ## Development Commands
 
@@ -155,6 +179,9 @@ Manages review skills configuration, skill discovery, presets, and validation.
 
 **Bundled scripts:**
 - `scripts/init-config.sh` - Initialize configuration files
+  - `--force` / `-f`: Force overwrite existing config without prompts
+  - `--skip-discover` / `-s`: Skip auto-discovery of skills
+  - `--global` / `--user` / `--project`: Set configuration level (default: project)
 - `scripts/discover-skills.sh` - Auto-discover review skills
 - `scripts/validate-config.sh` - Validate YAML syntax and structure
 - `scripts/merge-configs.sh` - Merge multi-tier configurations
@@ -170,9 +197,14 @@ Executes parallel code reviews using configured presets from config-manager.
 **Key workflow:**
 1. Load and validate configuration file
 2. Select review preset
-3. Collect code content (diffs, commits, branches)
+3. Collect code content using scripts (prefer `collect-review-data.sh`), fallback to Write tool
 4. Coordinate multiple subagents using configured skills
-5. Consolidate reports into comprehensive summary
+5. Use Write tool to save all reports and summaries
+
+**File Writing Approach:**
+- **Priority**: Use `scripts/collect-review-data.sh` for data collection (one-time operation)
+- **Fallback**: Use Write tool for manual file creation when scripts unavailable
+- **Avoid**: Bash commands with redirection (`cat > file`, `echo > file`)
 
 **Bundled scripts:**
 - `scripts/collect-review-data.sh` - Collect code data
