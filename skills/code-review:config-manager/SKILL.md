@@ -79,27 +79,118 @@ description: This skill should be used when the user asks to "manage review skil
 
 ### Step 2: 自动发现并更新 Review 能力
 
-扫描环境中所有可用的 skills 和 commands，识别与 code review 相关的能力。
+扫描环境中所有可用的 skills 和 commands，使用 LLM 智能识别与 code review 相关的能力。
 
-**首先运行自动发现脚本：**
+#### 2.1 收集候选项
+
+运行收集脚本，输出所有候选 skills 和 commands 到 JSON 文件：
 
 ```bash
-./scripts/discover-skills.sh [配置文件路径]
+./scripts/discover-skills.sh --collect-only /tmp/candidates.json
 ```
-
-如果未指定配置文件路径，脚本会自动按优先级查找（项目 > 用户 > 全局）。
 
 脚本会自动完成以下工作：
 - 读取配置文件中的 `skills_directories` 字段确定搜索目录
 - 扫描所有 SKILL.md 文件（skills）
 - 扫描 `~/.claude/plugins/cache/` 下的所有 commands
-- 识别 review 相关的能力（通过关键词过滤）
 - 自动排除自身（`code-review:config-manager`, `code-review:executor`）
 - 对相同 ID 的 commands 去重（保留最新版本）
-- 提取能力元信息（name、description、category、tags、type）
-- 更新配置文件的 `available_skills` 部分（保留用户已编辑的 presets）
+- 输出 JSON 文件包含所有候选项
 
-**如果脚本执行失败或用户需要手动控制，按以下步骤操作：**
+#### 2.2 LLM 判断筛选
+
+读取 JSON 文件，对每个候选项进行判断：
+
+```json
+{
+  "collected_at": "2025-01-15T10:00:00+08:00",
+  "total_candidates": 50,
+  "candidates": [
+    {
+      "id": "pr-review-toolkit:review-pr",
+      "name": "pr-review-toolkit:review-pr",
+      "type": "command",
+      "source_file": "~/.claude/plugins/cache/.../review-pr.md",
+      "description": "Comprehensive PR review using specialized agents"
+    },
+    ...
+  ]
+}
+```
+
+**判断标准：**
+
+对于每个候选项，判断其是否适合用于 code review 工作流：
+
+1. **核心 review 能力**：直接用于代码审查的能力
+   - 代码质量审查、安全审计、性能分析
+   - PR/MR 审查、代码清理
+   - 测试覆盖率分析
+
+2. **辅助 review 能力**：支持 review 过程的能力
+   - 文档生成、架构分析
+   - 调试辅助、错误诊断
+
+3. **不应包含**：
+   - 与代码审查无关的通用开发工具
+   - 纯粹的代码生成能力
+   - 项目初始化/配置工具
+   - 版本控制操作（非审查相关）
+
+**筛选方式：**
+
+根据候选项的 `description` 字段和 `id` 判断是否应该包含在 code review 配置中。
+
+输出筛选后的 JSON 文件，格式与输入相同：
+
+```json
+{
+  "collected_at": "2025-01-15T10:05:00+08:00",
+  "total_candidates": 15,
+  "candidates": [
+    {
+      "id": "pr-review-toolkit:review-pr",
+      "name": "pr-review-toolkit:review-pr",
+      "type": "command",
+      "source_file": "~/.claude/plugins/cache/.../review-pr.md",
+      "description": "Comprehensive PR review using specialized agents"
+    },
+    ...
+  ]
+}
+```
+
+#### 2.3 更新配置文件
+
+使用筛选后的 JSON 文件更新配置：
+
+```bash
+./scripts/discover-skills.sh --from-json /tmp/filtered.json [配置文件路径]
+```
+
+脚本会：
+- 从 JSON 文件读取筛选后的候选项
+- 为每个候选项推断 category 和 tags
+- 更新配置文件的 `available_skills` 部分
+- 保留用户已编辑的 presets
+
+---
+
+### Step 2-alt: 直接模式（简单场景）
+
+对于简单场景或用户确认需要快速更新，可以使用直接模式：
+
+```bash
+./scripts/discover-skills.sh [配置文件路径]
+```
+
+直接模式使用正则表达式过滤候选项，可能不够准确。建议使用 LLM 判断流程获得更准确的结果。
+
+---
+
+### Step 2-manual: 手动发现（备选方案）
+
+如果脚本执行失败或用户需要手动控制，按以下步骤操作：
 
 #### 2.1 确定 Skills 搜索目录（手动备选）
 
@@ -378,9 +469,26 @@ available_skills:
 ### discover-skills.sh
 自动发现并更新 code review skills 到配置文件。
 
+**推荐流程（LLM 判断）：**
+```bash
+# 1. 收集所有候选项到 JSON 文件
+./scripts/discover-skills.sh --collect-only /tmp/candidates.json
+
+# 2. 使用 LLM 判断筛选（在对话中完成）
+
+# 3. 从筛选后的 JSON 更新配置
+./scripts/discover-skills.sh --from-json /tmp/filtered.json [配置文件路径]
+```
+
+**直接模式（简单场景）：**
 ```bash
 ./scripts/discover-skills.sh [配置文件路径]
 ```
+
+**参数说明：**
+- `--collect-only <输出文件>` - 收集所有候选项到 JSON 文件，不做过滤
+- `--from-json <JSON文件> [配置文件]` - 从 JSON 文件更新配置
+- `--help` - 显示帮助信息
 
 如果未指定配置文件路径，脚本会自动按优先级查找（项目 > 用户 > 全局）。
 

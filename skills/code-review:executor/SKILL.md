@@ -565,6 +565,29 @@ Glob(path="{working_directory}/reports", pattern="*-report.md")
 - 问题列表（位置、描述、严重程度）
 - 发现该问题的 skill(s)
 
+**重要**: 必须追踪每个问题的来源 skill。
+
+**解析逻辑**:
+```python
+issues = []
+for report_file in report_files:
+    skill_name = extract_skill_name(report_file)  # 从文件名提取: {skill-name}-report.md
+    report_content = read_file(report_file)
+    report_issues = parse_issues(report_content)
+    for issue in report_issues:
+        issue.found_by = skill_name  # 标记问题来源
+        issues.append(issue)
+```
+
+**每个问题必须记录**:
+- `file_path`: 文件路径
+- `line_range`: 行号范围
+- `type`: 问题类型
+- `severity`: 严重程度
+- `description`: 问题描述
+- `found_by`: 发现该问题的 skill ID（如 `security-sast`, `pr-review`）
+- `also_found_by`: 同时发现该问题的其他 skill 列表（去重后用）
+
 #### 7.3 去重问题
 
 按以下条件对问题进行去重：
@@ -572,16 +595,30 @@ Glob(path="{working_directory}/reports", pattern="*-report.md")
 - 相同行号或范围
 - 相同的问题类型
 
+**重要**: 去重时必须合并发现者信息，而不是简单丢弃。
+
 **去重逻辑**:
 ```python
 issues = []
+issue_map = {}  # 用于追踪已发现的问题
+
 for report in reports:
     for issue in report.issues:
         key = (issue.file_path, issue.line_range, issue.type)
-        if key not in seen_issues:
-            seen_issues.add(key)
+        if key not in issue_map:
+            # 新问题，记录并设置发现者
+            issue_map[key] = issue
+            issue.found_by = [report.skill_name]  # 使用列表存储
             issues.append(issue)
+        else:
+            # 重复问题，追加发现者
+            existing = issue_map[key]
+            if report.skill_name not in existing.found_by:
+                existing.found_by.append(report.skill_name)
 ```
+
+**去重后每个问题包含**:
+- `found_by`: 发现该问题的所有 skill 列表
 
 #### 7.4 按严重程度分类
 
@@ -626,9 +663,9 @@ for report in reports:
 #### 1. SQL 注入风险在 auth/login.js:45
 - **位置**: `src/auth/login.js:45`
 - **严重程度**: High
+- **发现者**: security-scanning:security-auditor, code-review:code-review
 - **描述**: 用户输入未经验证直接拼接到 SQL 查询中
 - **建议**: 使用参数化查询
-- **发现者**: security-scanning:security-auditor, code-review:code-review
 
 #### 2. ...
 
@@ -643,6 +680,31 @@ for report in reports:
 ### Info (3 个)
 
 ...
+
+## 问题来源统计
+
+### 各 Skill 发现问题数量
+
+| Skill 名称 | Critical | High | Medium | Low | 总计 |
+|-----------|----------|------|--------|-----|------|
+| security-sast | 2 | 3 | 5 | 2 | 12 |
+| pr-review | 1 | 2 | 4 | 3 | 10 |
+| security-hardening | 2 | 1 | 3 | 1 | 7 |
+| refactor-clean | 0 | 2 | 6 | 8 | 16 |
+| ... | ... | ... | ... | ... | ... |
+
+**说明**: 同一问题可能被多个 skill 同时发现，表中数字为该 skill 独立发现的问题数量。
+
+### 问题发现者追踪
+
+以下展示每个问题的发现者，用于评估 skill 效果：
+
+| 问题 | 严重程度 | 发现者 |
+|-----|---------|--------|
+| SQL 注入风险 | High | security-sast, pr-review |
+| 敏感信息硬编码 | Critical | security-sast, security-hardening |
+| 代码重复 | Medium | refactor-clean, pr-enhance |
+| ... | ... | ... |
 
 ## 详细报告
 

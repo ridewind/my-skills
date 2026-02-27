@@ -34,12 +34,15 @@ Each subagent should output a markdown report with consistent structure.
 
 **3. Issues by Severity**
 
+**IMPORTANT: Each issue MUST include a `Found by` field to track which skill discovered it.**
+
 ```markdown
 ## Critical Issues
 
 ### Issue Title
 - **Location**: `file:path:line`
 - **Severity**: Critical
+- **Found by**: {skill-name}  ← REQUIRED: Track which skill found this issue
 - **Category**: {Security | Performance | Correctness | Style}
 - **Description**: Clear explanation of the issue
 
@@ -102,6 +105,7 @@ The error handling in `src/api/client.js` follows best practices with...
 
 - **Location**: `path/to/file.ext:line_number`
 - **Severity**: {Critical | High | Medium | Low}
+- **Found by**: {skill-id}  ← REQUIRED: Identify which skill found this issue
 - **Category**: {Security | Performance | Correctness | Maintainability | Style | Documentation}
 - **Rule/Pattern**: {Relevant rule or pattern name, if applicable}
 
@@ -218,6 +222,31 @@ The orchestrator generates a summary report combining all individual reports.
 | File | Critical | High | Medium | Low | Total |
 |------|----------|------|--------|-----|-------|
 | `src/auth/login.js` | 2 | 1 | 0 | 0 | 3 |
+
+### Issues by Reviewer Skill
+
+**This table is REQUIRED to help users evaluate skill effectiveness.**
+
+| Reviewer Skill | Critical | High | Medium | Low | Total |
+|----------------|----------|------|--------|-----|-------|
+| security-sast | 2 | 3 | 5 | 2 | 12 |
+| pr-review | 1 | 2 | 4 | 3 | 10 |
+| refactor-clean | 0 | 2 | 6 | 8 | 16 |
+| **Total (unique)** | **3** | **5** | **12** | **10** | **30** |
+
+**Note**: The "Total (unique)" row shows deduplicated issue counts. Individual skill counts may sum higher due to overlap.
+
+### Issue Discovery Matrix
+
+**For tracking which skills found which issues:**
+
+| Issue ID | Description | Severity | Found By Skills |
+|----------|-------------|----------|-----------------|
+| ISS-001 | SQL Injection in login.js | Critical | security-sast, pr-review |
+| ISS-002 | Hardcoded credentials | Critical | security-sast, security-hardening |
+| ISS-003 | Missing auth check | High | security-sast |
+| ISS-004 | Code duplication | Medium | refactor-clean, pr-enhance |
+| ... | ... | ... | ... |
 | `src/api/user.js` | 0 | 2 | 3 | 1 | 6 |
 | `src/utils/format.js` | 0 | 0 | 1 | 5 | 6 |
 
@@ -409,9 +438,16 @@ Before finalizing a report, verify:
 **Content:**
 - [ ] All sections included and complete
 - [ ] Issues have specific file:line references
+- [ ] **Each issue has `Found by` field identifying the source skill(s)** ← REQUIRED
 - [ ] Code examples are accurate
 - [ ] Recommendations are actionable
 - [ ] Severity levels are justified
+
+**Issue Source Tracking:**
+- [ ] Every issue includes which skill(s) found it
+- [ ] "Issues by Reviewer Skill" table is present and accurate
+- [ ] Duplicated issues show all discovering skills in `Found by` field
+- [ ] Issue Discovery Matrix is populated for key issues
 
 **Formatting:**
 - [ ] Markdown syntax is correct
@@ -428,6 +464,6 @@ Before finalizing a report, verify:
 
 **Completeness:**
 - [ ] All issues from individual reports included
-- [ ] Duplicates consolidated
+- [ ] Duplicates consolidated with source tracking preserved
 - [ ] Statistics accurate
 - [ ] Metadata complete

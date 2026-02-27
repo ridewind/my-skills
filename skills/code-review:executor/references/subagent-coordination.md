@@ -250,13 +250,25 @@ After all subagents complete:
   - Line number
   - Description
   - Recommendation
+  - **Source skill ID** (REQUIRED for tracking)
+
+**IMPORTANT: Track the source skill for each issue:**
+```
+For each report file (e.g., security-sast-report.md):
+1. Extract skill name from filename: security-sast
+2. For each issue found in this report:
+   - Set issue.found_by = skill name
+3. When consolidating duplicates:
+   - Merge found_by into a list: [security-sast, pr-review]
+```
 
 **Cross-reference duplicates:**
 - Group by file:line
 - If multiple skills find same issue:
-  - List all skills that found it
+  - List all skills that found it in `found_by` field
   - Consolidate into single finding
   - Note which skill found it first
+  - **Preserve all discoverers for "Issues by Reviewer Skill" table**
 
 ## Best Practices
 
