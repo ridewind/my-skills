@@ -1,5 +1,8 @@
 .claude/
 
+# Benchmark reports
+reports/
+
 # Logs
 logs
 *.log

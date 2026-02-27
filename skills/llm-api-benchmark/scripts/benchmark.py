@@ -7,9 +7,11 @@ performance benchmarking including response time, TTFT, and TPS.
 
 Usage:
     python benchmark.py [--iterations N] [--model MODEL] [--prompt PROMPT]
-    python benchmark.py --preset quick      # Quick test (short prompt)
-    python benchmark.py --preset standard   # Standard test (medium)
-    python benchmark.py --preset long       # Long output test
+    python benchmark.py --preset quick        # Quick test (short prompt)
+    python benchmark.py --preset throughput   # High output for TPS testing
+    python benchmark.py --preset code         # Code generation (default)
+
+Default: Uses 'code' preset (~500-1000 tokens) for coding workflows.
 """
 
 import os
@@ -63,8 +65,19 @@ Be thorough and detailed in each section. Output as much content as possible."""
     },
     "code": {
         "name": "Code Test",
-        "description": "Programming-related prompt (~50 tokens)",
-        "prompt": "Write a simple Hello World function in Python. Only output the code, no explanation.",
+        "description": "Programming-related prompt (~500-1000 tokens)",
+        "prompt": """Write a complete, production-ready Python class that implements a thread-safe LRU cache with the following features:
+1. Fixed capacity with automatic eviction of least recently used items
+2. Thread-safe operations using proper locking
+3. O(1) get and put operations
+4. Configurable capacity via constructor
+5. Clear method to empty the cache
+6. Size method to return current item count
+7. Comprehensive docstrings for all methods
+8. Type hints throughout
+
+Include thorough error handling and usage examples in the docstring.
+Make the implementation robust and well-commented.""",
     },
     "json": {
         "name": "JSON Test",
@@ -603,8 +616,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python benchmark.py                          # Run with default prompt
-  python benchmark.py --preset standard        # Use standard preset
+  python benchmark.py                          # Run with default (code preset)
+  python benchmark.py --preset throughput      # Use throughput preset for TPS testing
   python benchmark.py --preset quick -i 3      # Quick test with 3 iterations
   python benchmark.py -p "Your custom prompt"  # Custom prompt
 
@@ -612,7 +625,8 @@ Available presets:
   quick      - Short prompt for fast testing
   standard   - Medium prompt (counting test)
   long       - Longer output test
-  code       - Code generation test
+  throughput - High token output for TPS testing
+  code       - Code generation test (default, ~500-1000 tokens)
   json       - JSON output test
         """
     )
@@ -665,8 +679,8 @@ Available presets:
     elif args.prompt:
         prompt = args.prompt
     else:
-        # Default to standard preset
-        prompt = PRESET_PROMPTS['standard']['prompt']
+        # Default to code preset (optimized for coding workflows)
+        prompt = PRESET_PROMPTS['code']['prompt']
 
     if not args.quiet:
         print("=" * 60)

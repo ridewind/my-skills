@@ -73,12 +73,16 @@ Automatically detects current LLM API endpoint from environment variables and pe
 **Features:**
 - Auto-detect LLM providers (Anthropic, OpenAI, Azure, Google Gemini, AWS Bedrock)
 - Measure response time, TTFT (Time To First Token), TPS (Tokens Per Second)
+- Default `code` preset optimized for coding workflows (~500-1000 tokens)
 - Multiple preset prompts for different test scenarios
 - Markdown and JSON report output
 - Python standard library only (no dependencies)
 
 **Quick Start:**
 ```bash
+# Run with default (code preset, optimized for coding)
+python skills/llm-api-benchmark/scripts/benchmark.py
+
 # List available presets
 python skills/llm-api-benchmark/scripts/benchmark.py --list-presets
 
@@ -100,7 +104,7 @@ python skills/llm-api-benchmark/scripts/benchmark.py --iterations 10
 | `standard` | Medium-length prompt | ~20 tokens |
 | `long` | Longer output test | ~100+ tokens |
 | `throughput` | High token output for TPS testing | ~300-500 tokens |
-| `code` | Programming-related prompt | ~50 tokens |
+| `code` | Programming-related prompt (default) | ~500-1000 tokens |
 | `json` | Structured JSON output test | ~30 tokens |
 
 **Directory:** [skills/llm-api-benchmark/](skills/llm-api-benchmark/)
@@ -181,12 +185,18 @@ my-skills/
 │   │       ├── validate-config.sh # Validate configuration
 │   │       └── merge-configs.sh  # Merge multi-tier configs
 │   │
-│   └── code-review:executor/
+│   ├── code-review:executor/
+│   │   ├── SKILL.md              # Main skill instructions
+│   │   ├── references/           # Detailed reference docs
+│   │   └── scripts/
+│   │       ├── collect-review-data.sh  # Collect git data
+│   │       └── find-merge-base.sh      # Find merge base
+│   │
+│   └── llm-api-benchmark/
 │       ├── SKILL.md              # Main skill instructions
-│       ├── references/           # Detailed reference docs
+│       ├── examples/             # Example reports
 │       └── scripts/
-│           ├── collect-review-data.sh  # Collect git data
-│           └── find-merge-base.sh      # Find merge base
+│           └── benchmark.py      # Benchmark script
 │
 ├── CLAUDE.md                     # Project instructions
 └── README.md                     # This file

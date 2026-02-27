@@ -257,11 +257,19 @@ Automatically detects current LLM API endpoint from environment variables and pe
 - Multiple preset prompts for different test scenarios
 - Markdown and JSON report output
 
+**Default Behavior:**
+- **Preset**: `code` (~500-1000 tokens, optimized for coding workflows)
+- **Iterations**: 5
+- **Output**: `reports/llm-benchmark-{timestamp}/`
+
 **Bundled scripts:**
 - `scripts/benchmark.py` - Main benchmark script (Python standard library only)
 
 **Usage:**
 ```bash
+# Run with default (code preset)
+python skills/llm-api-benchmark/scripts/benchmark.py
+
 # List available presets
 python skills/llm-api-benchmark/scripts/benchmark.py --list-presets
 
@@ -275,11 +283,16 @@ python skills/llm-api-benchmark/scripts/benchmark.py --iterations 10
 **Presets:**
 | Preset | Description | Expected Output |
 |--------|-------------|-----------------|
-| `quick` | Short prompt | ~10 tokens |
-| `standard` | Medium prompt | ~20 tokens |
+| `quick` | Short prompt for fast testing | ~10 tokens |
+| `standard` | Medium-length prompt | ~20 tokens |
+| `long` | Longer output test | ~100+ tokens |
 | `throughput` | High token output for TPS testing | ~300-500 tokens |
+| `code` | Programming-related prompt (default) | ~500-1000 tokens |
+| `json` | Structured JSON output test | ~30 tokens |
 
 **Directory:** [skills/llm-api-benchmark/](skills/llm-api-benchmark/)
+
+**Example Report:** [skills/llm-api-benchmark/examples/benchmark-report-example.md](skills/llm-api-benchmark/examples/benchmark-report-example.md)
 
 ## Important Files
 
