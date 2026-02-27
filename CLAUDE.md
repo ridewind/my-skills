@@ -2,9 +2,111 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Quick Navigation
+
+- [Repository Purpose](#repository-purpose) - What this monorepo contains
+- [Core Principles](#core-principles) - Development philosophy and guidelines
+- [Tech Stack](#tech-stack) - Technologies and tools used
+- [Architecture](#architecture) - Skill structure and design patterns
+- [Workflow Instructions](#workflow-instructions) - How to work with this codebase
+- [Existing Skills](#existing-skills) - Available skills and their features
+- [Common Patterns](#common-patterns) - Reusable patterns and conventions
+
 ## Repository Purpose
 
 This is a monorepo for developing Claude Code skills. Skills are modular packages that extend Claude's capabilities with specialized workflows, domain knowledge, and bundled resources.
+
+## Core Principles
+
+### Development Philosophy
+
+1. **Progressive Disclosure**: Load information only when needed to minimize context usage
+2. **Modularity**: Each skill should be self-contained and independently usable
+3. **Imperative Style**: Use imperative/infinitive form in skill instructions ("Do X", not "You should do X")
+4. **Third-Person Descriptions**: Skill descriptions use third-person ("This skill should be used when...")
+5. **No Duplication**: Information should live in one place; reference explicitly instead of duplicating
+
+### Quality Standards
+
+- **Specific trigger phrases**: Include exact user queries that should trigger the skill
+- **Working examples**: All examples must be complete and runnable
+- **Documented scripts**: Scripts should have clear usage instructions and error handling
+- **Lean SKILL.md**: Keep core skill files focused (1,500-2,000 words ideally)
+- **Context efficiency**: Use three-level loading system (metadata → body → resources)
+
+### File Writing Guidelines (Code Review Skills)
+
+Code review skills must follow specific rules to minimize authorization prompts:
+1. **Prioritize Scripts**: Use existing scripts for data collection
+2. **Use Write Tool**: For manual file creation instead of Bash redirection
+3. **Bash for Queries Only**: Use Bash for read-only operations and script execution
+
+## Tech Stack
+
+### Languages
+- **Python**: Primary language for skill scripts and utilities
+- **Shell**: Bash scripts for automation and validation
+- **YAML**: Configuration files and skill frontmatter
+
+### Tools & Frameworks
+- **Claude Code**: Primary development environment
+- **npx skills**: Skill package management and distribution
+- **Git**: Version control with branching strategies
+
+### Skill Types
+- **Code Review Skills**: config-manager, executor
+- **Benchmarking Tools**: llm-api-benchmark
+- **Workflow Skills**: Various specialized skills for development tasks
+
+## Workflow Instructions
+
+### Testing Skills Locally
+
+```bash
+# Test skills with Claude Code
+cc --plugin-dir /path/to/my-skills
+
+# Trigger a skill by asking questions
+# e.g., "Review the feature/auth branch compared to dev"
+```
+
+### Creating New Skills
+
+```bash
+# 1. Create skill directory structure
+mkdir -p skills/your-skill/{references,examples,scripts}
+touch skills/your-skill/SKILL.md
+
+# 2. Write SKILL.md following structure above
+
+# 3. Add supporting resources as needed
+
+# 4. Test with cc --plugin-dir
+```
+
+### Making Scripts Executable
+
+```bash
+chmod +x skills/*/scripts/*.sh
+```
+
+### Development Workflow
+
+1. **Understand the requirement**: What problem should the skill solve?
+2. **Design the skill structure**: Plan SKILL.md, references/, examples/, scripts/
+3. **Write SKILL.md**: Follow the template with proper YAML frontmatter
+4. **Add resources**: Create supporting files as needed
+5. **Test locally**: Use `cc --plugin-dir .` to verify
+6. **Distribute**: Publish via npx skills or install directly
+
+### Common Development Commands
+
+| Task | Command |
+|------|---------|
+| Test skills | `cc --plugin-dir .` |
+| Create skill | `mkdir -p skills/your-skill/{references,examples,scripts}` |
+| Make executable | `chmod +x skills/*/scripts/*.sh` |
+| Install skill globally | `npx skills add user/repo --skill skill-name -g -y` |
 
 ## Architecture
 
@@ -77,82 +179,6 @@ description: This skill should be used when the user asks to "create a hook", "a
 - May execute without loading into context
 - Should be well-documented and error-handled
 - Designed to minimize file write operations in skills
-
-## Code Review Skills - File Writing Guidelines
-
-**Important**: Code review skills must follow specific file writing rules to minimize authorization prompts.
-
-### File Writing Principles
-
-1. **Prioritize Scripts**: Use existing scripts (e.g., `collect-review-data.sh`) to collect data and generate files in one operation
-2. **Use Write Tool for Manual File Creation**: When scripts are not available, use the Write tool instead of Bash with redirection (`cat > file`, `echo > file`)
-3. **Bash for Queries Only**: Use Bash tool for read-only operations (git log, git diff, ls, etc.) and script execution
-
-### When to Use Write Tool
-
-- Saving JSON configuration files (code-context.json, commits.json, branch-info.json)
-- Saving Markdown reports (DEBUG-SESSION.md, comprehensive reports, skill reports)
-- Any file that needs to be created by the AI
-
-### When to Use Bash Tool
-
-- Querying information (git log, git diff, find, ls, etc.)
-- Creating/moving directories
-- Executing shell scripts that handle file generation internally
-- File operations without content modification
-
-## Development Commands
-
-### Testing Skills Locally
-
-```bash
-# Test skills with Claude Code
-cc --plugin-dir /path/to/my-skills
-
-# Trigger a skill by asking questions
-# e.g., "Review the feature/auth branch compared to dev"
-```
-
-### Creating New Skills
-
-```bash
-# 1. Create skill directory structure
-mkdir -p skills/your-skill/{references,examples,scripts}
-touch skills/your-skill/SKILL.md
-
-# 2. Write SKILL.md following structure above
-
-# 3. Add supporting resources as needed
-
-# 4. Test with cc --plugin-dir
-```
-
-### Making Scripts Executable
-
-```bash
-chmod +x skills/*/scripts/*.sh
-```
-
-## Key Principles
-
-### Writing Style
-
-- **Imperative form throughout**: "Start by reading the file", not "You should start by reading"
-- **Third-person in description**: "This skill should be used when...", not "Use this skill when..."
-- **Objective, instructional language**: "Parse the frontmatter using sed", not "You can parse..."
-
-### Content Organization
-
-- **SKILL.md is lean**: Core essentials only, move details to references/
-- **Don't duplicate**: Information lives in either SKILL.md or references/, not both
-- **Reference explicitly**: Always link to supporting files from SKILL.md
-
-### Quality Standards
-
-- **Specific trigger phrases**: Include exact user queries in description
-- **Working examples**: All examples must be complete and runnable
-- **Documented scripts**: Scripts should have clear usage instructions
-- **Error handling**: Scripts should handle edge cases gracefully
 
 ## Existing Skills
 

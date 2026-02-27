@@ -18,7 +18,6 @@ import os
 import sys
 import json
 import time
-import re
 import argparse
 import statistics
 import socket
@@ -271,7 +270,7 @@ def make_streaming_request(
     try:
         # Parse URL
         parsed = urlparse(config.endpoint)
-        host = parsed.netloc or parsed.hostname or 'api.anthropic.com'
+        host = parsed.hostname or parsed.netloc or 'api.anthropic.com'
         port = parsed.port or (443 if parsed.scheme == 'https' else 80)
         path = parsed.path or '/'
 
