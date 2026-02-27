@@ -56,6 +56,57 @@ Executes parallel code reviews using configured presets from config-manager.
 
 ---
 
+### llm-api-benchmark
+
+**LLM API performance benchmarking tool.**
+
+Automatically detects current LLM API endpoint from environment variables and performs performance benchmarking.
+
+**When to use:**
+- "Test API speed"
+- "Benchmark LLM"
+- "Check API latency"
+- "Measure response time"
+- "Test TPS"
+- "测试 API 速度"
+
+**Features:**
+- Auto-detect LLM providers (Anthropic, OpenAI, Azure, Google Gemini, AWS Bedrock)
+- Measure response time, TTFT (Time To First Token), TPS (Tokens Per Second)
+- Multiple preset prompts for different test scenarios
+- Markdown and JSON report output
+- Python standard library only (no dependencies)
+
+**Quick Start:**
+```bash
+# List available presets
+python skills/llm-api-benchmark/scripts/benchmark.py --list-presets
+
+# Run benchmark with throughput preset (recommended for TPS testing)
+python skills/llm-api-benchmark/scripts/benchmark.py --preset throughput
+
+# Quick test
+python skills/llm-api-benchmark/scripts/benchmark.py --preset quick
+
+# Custom iterations
+python skills/llm-api-benchmark/scripts/benchmark.py --iterations 10
+```
+
+**Presets:**
+
+| Preset | Description | Expected Output |
+|--------|-------------|-----------------|
+| `quick` | Short prompt for fast testing | ~10 tokens |
+| `standard` | Medium-length prompt | ~20 tokens |
+| `long` | Longer output test | ~100+ tokens |
+| `throughput` | High token output for TPS testing | ~300-500 tokens |
+| `code` | Programming-related prompt | ~50 tokens |
+| `json` | Structured JSON output test | ~30 tokens |
+
+**Directory:** [skills/llm-api-benchmark/](skills/llm-api-benchmark/)
+
+---
+
 ## Architecture
 
 The code review system uses a two-skill architecture:

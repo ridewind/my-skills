@@ -245,6 +245,42 @@ npx skills add ridewind/my-skills --skill code-review:config-manager -g -y
 npx skills add ridewind/my-skills --skill code-review:executor -g -y
 ```
 
+### llm-api-benchmark
+
+**LLM API performance benchmarking tool.**
+
+Automatically detects current LLM API endpoint from environment variables and performs performance benchmarking.
+
+**Features:**
+- Auto-detect LLM providers (Anthropic, OpenAI, Azure, Google Gemini, AWS Bedrock)
+- Measure response time, TTFT (Time To First Token), TPS (Tokens Per Second)
+- Multiple preset prompts for different test scenarios
+- Markdown and JSON report output
+
+**Bundled scripts:**
+- `scripts/benchmark.py` - Main benchmark script (Python standard library only)
+
+**Usage:**
+```bash
+# List available presets
+python skills/llm-api-benchmark/scripts/benchmark.py --list-presets
+
+# Run benchmark with preset
+python skills/llm-api-benchmark/scripts/benchmark.py --preset throughput
+
+# Custom iterations
+python skills/llm-api-benchmark/scripts/benchmark.py --iterations 10
+```
+
+**Presets:**
+| Preset | Description | Expected Output |
+|--------|-------------|-----------------|
+| `quick` | Short prompt | ~10 tokens |
+| `standard` | Medium prompt | ~20 tokens |
+| `throughput` | High token output for TPS testing | ~300-500 tokens |
+
+**Directory:** [skills/llm-api-benchmark/](skills/llm-api-benchmark/)
+
 ## Important Files
 
 - **README.md**: Project overview and quick start guide
