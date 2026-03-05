@@ -52,13 +52,12 @@ LLM API 端点性能测试工具，支持两种测试模式：Agent 模式（测
 
 ### 第二步：执行测试
 
-用户确认后，使用 **orchestrator 模式** 执行完整测试流程：
+用户确认后，**必须使用 Agent 工具启动一个 orchestrator subagent** 来执行整个测试流程。这样只需一次确认即可完成所有迭代。
 
 #### Agent 模式（推荐）
 
-启动一个 orchestrator subagent 执行整个测试流程，只需一次确认即可完成所有迭代：
+**关键**：用户确认后，主会话应立即调用 Agent 工具启动 orchestrator，将以下提示词传给 subagent：
 
-**Orchestrator 提示词**：
 ```
 你是 LLM API Benchmark 执行器。请执行以下任务：
 
@@ -72,18 +71,21 @@ LLM API 端点性能测试工具，支持两种测试模式：Agent 模式（测
 
 **执行步骤**：
 
-1. 记录当前端点（从 ANTHROPIC_BASE_URL 环境变量）
+1. 记录当前端点（从 ANTHROPIC_BASE_URL 环境变量读取，用 Bash 运行 echo $ANTHROPIC_BASE_URL）
 2. 串行执行 {iterations} 次测试迭代：
-   - 每次使用 Agent 工具执行任务
-   - 记录每次的响应时间
-   - 每次迭代后等待 1.5 秒避免速率限制
-3. 计算统计数据（avg, min, max）
-4. 保存结果到 reports/llm-benchmark-subagent/benchmark-{timestamp}.json
+   - 直接回答用户的任务提示词（不要调用其他 Agent）
+   - 记录每次的开始时间和结束时间
+   - 估算每次输出的 token 数量（按 1 token ≈ 4 字符估算）
+   - 每次迭代后等待 1.5 秒避免速率限制（用 sleep 1.5）
+3. 计算统计数据（avg, min, max, avg_tps）
+4. 使用 Write 工具保存结果到 reports/llm-benchmark-subagent/benchmark-{timestamp}.json
 
 **重要**：
 - 必须串行执行，不能并行
+- 直接回答任务，不要调用其他 Agent
 - 每次迭代后必须等待 1.5 秒
 - 任务提示词必须在 /tmp/ 目录下工作
+- TPS = 输出 token 数量 / 响应时间
 
 **结果格式**：
 ```json
@@ -95,11 +97,28 @@ LLM API 端点性能测试工具，支持两种测试模式：Agent 模式（测
   "avg_time": 1.23,
   "min_time": 1.15,
   "max_time": 1.31,
-  "times": [1.23, 1.15, 1.31, 1.18, 1.25]
+  "avg_tps": 45.2,
+  "times": [1.23, 1.15, 1.31, 1.18, 1.25],
+  "tokens": [56, 52, 58, 54, 55],
+  "tps": [45.5, 45.2, 44.6, 46.3, 44.0],
+  "total_tokens": 275
 }
 ```
 
 请开始执行测试。
+```
+
+**主会话执行示例**：
+```
+用户确认后，主会话应：
+
+1. 使用 Agent 工具启动 subagent
+   - subagent_type: "generic" 或 "Ask" (如果没有 generic)
+   - 提示词: 填充后的 orchestrator 提示词
+
+2. 等待 subagent 完成
+
+3. 读取生成的结果文件并显示摘要
 ```
 
 **任务提示词库**：
@@ -172,7 +191,7 @@ python skills/llm-api-benchmark/scripts/benchmark.py --preset code --iterations 
 
 ### 第三步：显示结果
 
-测试完成后，显示结果摘要：
+测试完成后，读取结果文件并显示摘要：
 
 ```
 ✅ 测试完成！
@@ -182,6 +201,8 @@ python skills/llm-api-benchmark/scripts/benchmark.py --preset code --iterations 
 - 迭代次数: {iterations}
 - 平均响应时间: {avg_time:.2f}s
 - 最小: {min_time:.2f}s | 最大: {max_time:.2f}s
+- 平均 TPS: {avg_tps:.1f} tokens/s
+- 总输出 tokens: {total_tokens}
 
 📁 详细报告: reports/llm-benchmark-subagent/benchmark-{timestamp}.json
 ```
@@ -207,27 +228,42 @@ python skills/llm-api-benchmark/scripts/compare-results.py
   "avg_time": 1.23,
   "min_time": 1.15,
   "max_time": 1.31,
-  "times": [1.23, 1.15, 1.31, 1.18, 1.25]
+  "avg_tps": 45.2,
+  "times": [1.23, 1.15, 1.31, 1.18, 1.25],
+  "tokens": [56, 52, 58, 54, 55],
+  "tps": [45.5, 45.2, 44.6, 46.3, 44.0],
+  "total_tokens": 275
 }
 ```
+
+**字段说明**：
+- `avg_tps`: 平均 TPS (tokens/秒)
+- `tokens`: 每次迭代的输出 token 数
+- `tps`: 每次迭代的 TPS
+- `total_tokens`: 总输出 token 数
+
+**TPS 计算方式**：
+- 输出 token 数按 1 token ≈ 4 字符估算
+- TPS = tokens / response_time
 
 ### 对比输出示例
 
 ```
-=====================================================================================
+====================================================================================================
                     LLM API ENDPOINT COMPARISON
-=====================================================================================
+====================================================================================================
 
-Endpoint                                         Avg        Min        Max        Relative
--------------------------------------------------------------------------------------
-localhost:8080                                   0.82s      0.78s      0.89s      ⚡ baseline
-api.anthropic.com                                1.23s      1.15s      1.31s      1.5× slower
-192.168.1.100:8080                               2.45s      2.30s      2.60s      3.0× slower
--------------------------------------------------------------------------------------
+Endpoint                                         Avg        Min        Max        TPS        Relative
+----------------------------------------------------------------------------------------------------
+localhost:8080                                   0.82s      0.78s      0.89s      52.3       ⚡ baseline
+api.anthropic.com                                1.23s      1.15s      1.31s      45.2       1.5× slower
+192.168.1.100:8080                               2.45s      2.30s      2.60s      38.1       3.0× slower
+----------------------------------------------------------------------------------------------------
 Total endpoints tested: 3
 
 Notes:
   - 'Avg' is the average response time across all iterations
+  - 'TPS' is average tokens per second (estimated from output length)
   - Relative speed compares each endpoint to the fastest (baseline)
 ```
 

@@ -83,16 +83,29 @@ def generate_comparison(results: list[dict], output_format: str = "table") -> st
             "results": unique_results
         }, indent=2)
 
-    # Table format
-    lines = [
-        "",
-        "=" * 85,
-        "                    LLM API ENDPOINT COMPARISON",
-        "=" * 85,
-        "",
-        f"{'Endpoint':<38} {'Avg':<10} {'Min':<10} {'Max':<10} {'Relative':<12}",
-        "-" * 85,
-    ]
+    # Table format - include TPS if available
+    has_tps = any(r.get("avg_tps") for r in unique_results)
+
+    if has_tps:
+        lines = [
+            "",
+            "=" * 100,
+            "                    LLM API ENDPOINT COMPARISON",
+            "=" * 100,
+            "",
+            f"{'Endpoint':<38} {'Avg':<10} {'Min':<10} {'Max':<10} {'TPS':<10} {'Relative':<12}",
+            "-" * 100,
+        ]
+    else:
+        lines = [
+            "",
+            "=" * 85,
+            "                    LLM API ENDPOINT COMPARISON",
+            "=" * 85,
+            "",
+            f"{'Endpoint':<38} {'Avg':<10} {'Min':<10} {'Max':<10} {'Relative':<12}",
+            "-" * 85,
+        ]
 
     if not unique_results:
         lines.append("No results to display.")
@@ -105,10 +118,12 @@ def generate_comparison(results: list[dict], output_format: str = "table") -> st
         avg = r.get("avg_time", 0)
         min_t = r.get("min_time", 0)
         max_t = r.get("max_time", 0)
+        avg_tps = r.get("avg_tps", 0)
 
         avg_str = f"{avg:.2f}s"
         min_str = f"{min_t:.2f}s"
         max_str = f"{max_t:.2f}s"
+        tps_str = f"{avg_tps:.1f}" if avg_tps > 0 else "N/A"
 
         # Calculate relative speed
         if avg > 0:
@@ -121,19 +136,36 @@ def generate_comparison(results: list[dict], output_format: str = "table") -> st
         else:
             relative = "N/A"
 
-        lines.append(
-            f"{endpoint:<38} {avg_str:<10} {min_str:<10} {max_str:<10} {relative:<12}"
-        )
+        if has_tps:
+            lines.append(
+                f"{endpoint:<38} {avg_str:<10} {min_str:<10} {max_str:<10} {tps_str:<10} {relative:<12}"
+            )
+        else:
+            lines.append(
+                f"{endpoint:<38} {avg_str:<10} {min_str:<10} {max_str:<10} {relative:<12}"
+            )
 
-    lines.extend([
-        "-" * 85,
-        f"Total endpoints tested: {len(unique_results)}",
-        "",
-        "Notes:",
-        "  - 'Avg' is the average response time across all iterations",
-        "  - Relative speed compares each endpoint to the fastest (baseline)",
-        "",
-    ])
+    if has_tps:
+        lines.extend([
+            "-" * 100,
+            f"Total endpoints tested: {len(unique_results)}",
+            "",
+            "Notes:",
+            "  - 'Avg' is the average response time across all iterations",
+            "  - 'TPS' is average tokens per second (estimated from output length)",
+            "  - Relative speed compares each endpoint to the fastest (baseline)",
+            "",
+        ])
+    else:
+        lines.extend([
+            "-" * 85,
+            f"Total endpoints tested: {len(unique_results)}",
+            "",
+            "Notes:",
+            "  - 'Avg' is the average response time across all iterations",
+            "  - Relative speed compares each endpoint to the fastest (baseline)",
+            "",
+        ])
 
     return "\n".join(lines)
 
