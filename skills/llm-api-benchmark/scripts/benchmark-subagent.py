@@ -17,7 +17,31 @@ import sys
 from pathlib import Path
 
 # Task definitions that trigger LLM calls
+# All tasks are designed to be stateless - they don't write files to the project
 TASKS = {
+    "analysis": {
+        "name": "Algorithm Analysis",
+        "description": "Analyze algorithm complexity (stateless)",
+        "prompt": """Analyze the time complexity of the following algorithm and explain how to optimize it:
+
+```python
+def find_duplicates(arr):
+    duplicates = []
+    for i in range(len(arr)):
+        for j in range(i+1, len(arr)):
+            if arr[i] == arr[j] and arr[i] not in duplicates:
+                duplicates.append(arr[i])
+    return duplicates
+```
+
+Please provide:
+1. Current time complexity with explanation
+2. Space complexity analysis
+3. Optimization approach with code example
+4. Trade-offs of the optimized version
+
+Work in /tmp/benchmark-test/ directory for any files you need to create."""
+    },
     "code": {
         "name": "Code Generation",
         "description": "Generate a Python implementation",
@@ -30,6 +54,7 @@ Requirements:
 4. Include usage examples
 5. Make it efficient and readable
 
+Work in /tmp/benchmark-test/ directory for any files you need to create.
 Return your implementation in a code block."""
     },
     "doc": {
@@ -46,20 +71,6 @@ Cover:
 
 Write at least 300 words."""
     },
-    "analysis": {
-        "name": "Code Analysis",
-        "description": "Analyze and explain code",
-        "prompt": """Please analyze the following Python code and explain what it does, its time complexity, and potential improvements:
-
-```python
-def fibonacci(n):
-    if n <= 1:
-        return n
-    return fibonacci(n-1) + fibonacci(n-2)
-```
-
-Provide a detailed analysis."""
-    },
     "refactor": {
         "name": "Code Refactoring",
         "description": "Refactor code to improve quality",
@@ -74,7 +85,8 @@ def process(items):
     return result
 ```
 
-Make it more Pythonic, efficient, and readable."""
+Make it more Pythonic, efficient, and readable.
+Work in /tmp/benchmark-test/ directory for any files you need to create."""
     }
 }
 

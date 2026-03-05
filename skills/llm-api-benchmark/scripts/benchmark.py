@@ -440,9 +440,9 @@ def run_benchmark(
         result = make_streaming_request(config, prompt, i + 1)
         results.append(result)
 
-        # Small delay between requests
+        # Delay between requests to avoid rate limiting
         if i < iterations - 1:
-            time.sleep(0.5)
+            time.sleep(1.5)
 
     return results
 
