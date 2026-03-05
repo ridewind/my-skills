@@ -107,20 +107,33 @@ python skills/llm-api-benchmark/scripts/compare-results.py
 {
   "timestamp": "2026-03-05T10:30:45",
   "endpoint": "https://...",
-  "task": "algorithm-analysis",
+  "task": "implementation",
   "iterations": 5,
   "avg_time": 1.23,
   "min_time": 1.15,
   "max_time": 1.31,
   "avg_tps": 45.2,
-  "times": [1.23, 1.15, 1.31, 1.18, 1.25],
-  "tokens": [56, 52, 58, 54, 55],
-  "tps": [45.5, 45.2, 44.6, 46.3, 44.0],
-  "total_tokens": 275
+  "total_tokens": 275,
+  "details": [
+    {
+      "iteration": 1,
+      "start_time": "2026-03-05T10:30:45.123",
+      "end_time": "2026-03-05T10:30:46.353",
+      "response_time": 1.23,
+      "tokens": 56,
+      "tps": 45.5,
+      "output": "完整的端点输出内容..."
+    }
+  ]
 }
 ```
 
-**TPS 计算**：输出 token 数按 1 token ≈ 4 字符估算，TPS = tokens / response_time
+**字段说明**：
+- `details[]`: 每次迭代的详细记录
+  - `start_time`: 迭代开始时间（ISO 格式）
+  - `end_time`: 迭代结束时间（ISO 格式）
+  - `output`: 端点输出的完整内容
+- **TPS 计算**：输出 token 数按 1 token ≈ 4 字符估算，TPS = tokens / response_time
 
 ## Mode Comparison
 
