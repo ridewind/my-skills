@@ -36,7 +36,15 @@ options:
 
 **第二步：执行测试**
 
-用户确认后，使用 Agent 工具启动 orchestrator subagent。详细提示词模板见 [references/orchestrator-patterns.md](references/orchestrator-patterns.md)。
+用户确认后，使用 Agent 工具启动 orchestrator subagent。
+
+**Agent 模式工作原理**：
+- Orchestrator 会串行执行 N 次迭代
+- 每次迭代中，orchestrator 会记录时间 → 直接回答任务提示词（触发 LLM API 调用）→ 记录结束时间
+- 记录完整的 LLM 输出内容和时间戳
+- 最后计算统计数据并保存 JSON 报告
+
+详细提示词模板见 [references/orchestrator-patterns.md](references/orchestrator-patterns.md)。
 
 **第三步：显示结果**
 
@@ -140,9 +148,9 @@ python skills/llm-api-benchmark/scripts/compare-results.py
 | Feature | Agent Mode | HTTP Mode |
 |---------|------------|-----------|
 | Trigger | Agent 工具 | Python 脚本 |
-| Measures | Agent 执行时间 | HTTP 响应 + TTFT + TPS |
+| Measures | LLM 端点响应时间（通过 Agent 回答任务触发 API 调用） | HTTP 响应 + TTFT + TPS（直接调用 API） |
 | Auth prompts | 一次确认完成所有迭代 | 无需确认 |
-| Use case | 相对性能对比 | 精确性能测量 |
+| Use case | 相对性能对比（测试真实 Agent 工作负载） | 精确性能测量（纯 API 性能） |
 
 ## Troubleshooting
 

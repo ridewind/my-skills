@@ -18,23 +18,53 @@ Patterns for running benchmark tests with orchestrator subagents.
 **执行步骤**：
 
 1. 记录当前端点（从 ANTHROPIC_BASE_URL 环境变量读取，用 Bash 运行 echo $ANTHROPIC_BASE_URL）
-2. 串行执行 {iterations} 次测试迭代：
-   - 直接回答用户的任务提示词（不要调用其他 Agent）
-   - 记录每次的开始时间（ISO 格式，如 2026-03-05T10:30:45.123）
-   - 记录每次的结束时间（ISO 格式）
-   - 保存每次端点输出的完整内容
-   - 估算每次输出的 token 数量（按 1 token ≈ 4 字符估算）
-   - 每次迭代后等待 1.5 秒避免速率限制（用 sleep 1.5）
-3. 计算统计数据（avg, min, max, avg_tps）
+
+2. 串行执行 {iterations} 次测试迭代，每次迭代：
+
+   a. **记录开始时间**（使用 Bash 运行：`date -u +"%Y-%m-%dT%H:%M:%S.%3N"` 获取 ISO 格式时间戳）
+
+   b. **调用 LLM 端点回答任务**：
+      - 在你的回复中直接写出对任务提示词的答案
+      - 这会触发对 LLM 端点的 API 调用
+      - 例如：如果任务提示词是 "Implement a Python LRU cache"，你就应该直接输出完整的 Python 代码实现
+
+   c. **记录结束时间**（使用 Bash 运行同样的 date 命令）
+
+   d. **保存本次迭代的数据**：
+      - 保存你刚才输出的完整内容（这就是端点的输出）
+      - 估算输出的 token 数量（按 1 token ≈ 4 字符）
+      - 计算响应时间 = 结束时间 - 开始时间
+      - 计算 TPS = token 数量 / 响应时间
+
+   e. **等待 1.5 秒**（使用 Bash 运行：`sleep 1.5`）
+
+3. 所有迭代完成后，计算统计数据（avg, min, max, avg_tps）
+
 4. 使用 Write 工具保存结果到 reports/llm-benchmark-subagent/benchmark-{timestamp}.json
 
 **重要**：
+- **每次迭代必须先用 Bash 记录时间，然后输出你的答案，最后再记录结束时间**
+- 答案内容必须直接写在你的回复中（不要用代码块、不要用 Write 工具），这样才能触发 LLM 端点调用
 - 必须串行执行，不能并行
-- 直接回答任务，不要调用其他 Agent
 - 每次迭代后必须等待 1.5 秒
-- 任务提示词必须在 /tmp/ 目录下工作
 - TPS = 输出 token 数量 / 响应时间
 - 必须记录每次迭代的开始/结束时间和输出内容
+
+**执行示例**（假设任务提示词是 "输出斐波那契数列前10项"）：
+
+```
+迭代 1 开始...
+【Bash 记录开始时间：2026-03-05T10:30:45.123】
+
+【现在输出答案：】
+斐波那契数列前10项是：0, 1, 1, 2, 3, 5, 8, 13, 21, 34
+
+【Bash 记录结束时间：2026-03-05T10:30:46.353】
+【Bash 执行 sleep 1.5】
+
+迭代 2 开始...
+【重复上述步骤】
+```
 
 **结果格式**：
 ```json
@@ -56,7 +86,7 @@ Patterns for running benchmark tests with orchestrator subagents.
       "response_time": 1.23,
       "tokens": 56,
       "tps": 45.5,
-      "output": "完整的端点输出内容..."
+      "output": "这里保存你这次迭代输出的完整文本内容（就是你对任务提示词的回答）"
     },
     {
       "iteration": 2,
@@ -65,13 +95,18 @@ Patterns for running benchmark tests with orchestrator subagents.
       "response_time": 1.15,
       "tokens": 52,
       "tps": 45.2,
-      "output": "完整的端点输出内容..."
+      "output": "这里保存第二次迭代输出的完整文本内容"
     }
   ]
 }
 ```
 
-**注意**：details 数组包含每次迭代的完整记录，output 字段保存端点的原始输出。
+**字段说明**：
+- `start_time` / `end_time`：使用 `date -u +"%Y-%m-%dT%H:%M:%S.%3N"` 获取的时间戳
+- `response_time`：end_time - start_time 的差值（秒）
+- `tokens`：output 字段的字符数 ÷ 4
+- `tps`：tokens ÷ response_time
+- `output`：**你在本次迭代中输出的完整内容**（就是你作为 LLM 对任务提示词的回答）
 ```
 
 ## Orchestrator Advantages
