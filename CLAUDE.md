@@ -54,7 +54,7 @@ Code review skills must follow specific rules to minimize authorization prompts:
 - **Git**: Version control with branching strategies
 
 ### Skill Types
-- **Code Review Skills**: config-manager, executor
+- **Code Review Skills**: code-review-executor
 - **Benchmarking Tools**: llm-api-benchmark
 - **Workflow Skills**: Various specialized skills for development tasks
 
@@ -182,93 +182,61 @@ description: This skill should be used when the user asks to "create a hook", "a
 
 ## Existing Skills
 
-This repository contains code review skills with a two-skill architecture:
+This repository contains the following skills:
 
-### code-review:config-manager
+### code-review-executor
 
-**Configuration manager for code review skills.**
+**Unified code review skill with configuration management and execution.**
 
-Manages review skills configuration, skill discovery, presets, and validation.
+A single skill that combines configuration management and code review execution, providing a streamlined experience.
 
-**Configuration System:**
-- Three-tier priority: project > user > global
-- Locations:
-  - Project: `.claude/code-review-skills/config.yaml`
-  - User: `~/.claude/code-review-skills/config.yaml`
-  - Global: `~/.config/claude/code-review-skills/config.yaml`
+**Key Features:**
+- **Configuration Management**: Three-tier priority (project > user > global)
+- **Skill Discovery**: Auto-discover review skills and commands
+- **Preset Management**: Create, edit, delete review presets
+- **Parallel Execution**: Coordinate multiple subagents for comprehensive reviews
+- **Result Consolidation**: Deduplicate issues, track finders, generate reports
 
-**Key features:**
-- Skill auto-discovery and categorization
-- Preset management (create, edit, delete presets)
-- Configuration validation and merging
-- Multi-tier configuration support
+**Configuration Locations:**
+- Project: `.claude/code-review-skills/config.yaml`
+- User: `~/.claude/code-review-skills/config.yaml`
+- Global: `~/.config/claude/code-review-skills/config.yaml`
 
-**Bundled scripts:**
-- `scripts/init-config.sh` - Initialize configuration files
-  - `--force` / `-f`: Force overwrite existing config without prompts
-  - `--skip-discover` / `-s`: Skip auto-discovery of skills
-  - `--global` / `--user` / `--project`: Set configuration level (default: project)
-- `scripts/discover-skills.sh` - Auto-discover review skills
-- `scripts/validate-config.sh` - Validate YAML syntax and structure
-- `scripts/merge-configs.sh` - Merge multi-tier configurations
+**8-Step Workflow:**
+1. Debug Mode Detection
+2. Load & Validate Config
+3. Determine Review Scope
+4. Create Working Directory
+5. Select Review Preset
+6. Collect Code Content
+7. Parallel Execution
+8. Consolidate Results
 
-**Directory:** [skills/code-review:config-manager/](skills/code-review:config-manager/)
+**Bundled Scripts:**
+| Script | Purpose |
+|--------|---------|
+| `collect-review-data.sh` | Collect code data (diffs, commits, branches) |
+| `discover-skills.sh` | Auto-discover review skills |
+| `init-config.sh` | Initialize configuration files |
+| `validate-config.sh` | Validate YAML syntax and structure |
+| `merge-configs.sh` | Merge multi-tier configurations |
+| `find-merge-base.sh` | Find merge base for branch comparison |
 
-### code-review:executor
+**References:**
+- `configuration-guide.md` - Detailed configuration management guide
+- `issue-categories.md` - Severity levels and classification
+- `report-formatting.md` - Report format standards
+- `subagent-coordination.md` - Parallel execution guide
 
-**Code review executor with parallel skill orchestration.**
-
-Executes parallel code reviews using configured presets from config-manager.
-
-**Key workflow:**
-1. Load and validate configuration file
-2. Select review preset
-3. Collect code content using scripts (prefer `collect-review-data.sh`), fallback to Write tool
-4. Coordinate multiple subagents using configured skills
-5. Use Write tool to save all reports and summaries
-
-**File Writing Approach:**
-- **Priority**: Use `scripts/collect-review-data.sh` for data collection (one-time operation)
-- **Fallback**: Use Write tool for manual file creation when scripts unavailable
-- **Avoid**: Bash commands with redirection (`cat > file`, `echo > file`)
-
-**Bundled scripts:**
-- `scripts/collect-review-data.sh` - Collect code data
-- `scripts/find-merge-base.sh` - Find merge base for branch comparison
-
-**Directory:** [skills/code-review:executor/](skills/code-review:executor/)
-
-### Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    code-review:executor                      │
-│              (Review Execution & Orchestration)              │
-├─────────────────────────────────────────────────────────────┤
-│  1. Load configuration from config-manager                   │
-│  2. Select review preset                                     │
-│  3. Collect code content (diffs, commits, branches)          │
-│  4. Launch parallel subagents with configured skills         │
-│  5. Consolidate reports into comprehensive summary           │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                 code-review:config-manager                   │
-│                (Configuration Management)                    │
-├─────────────────────────────────────────────────────────────┤
-│  • Three-tier configuration (project > user > global)        │
-│  • Auto-discover available review skills                     │
-│  • Manage presets (quick review, full review, security...)   │
-│  • Validate configuration files                              │
-└─────────────────────────────────────────────────────────────┘
-```
+**Directory:** [skills/code-review-executor/](skills/code-review-executor/)
 
 **Installation:**
 ```bash
-# Install both skills for configuration-driven reviews
-npx skills add ridewind/my-skills --skill code-review:config-manager -g -y
-npx skills add ridewind/my-skills --skill code-review:executor -g -y
+# Using npx skills
+npx skills add ridewind/my-skills --skill code-review-executor -g -y
+
+# Or using soft link (for development)
+ln -sf /projects/my-skills/skills/code-review-executor ~/.claude/skills/code-review-executor
 ```
 
 ### llm-api-benchmark
@@ -370,7 +338,7 @@ When coordinating multiple subagents:
 4. Wait for all to complete using TaskOutput tool
 5. Read and consolidate all results
 
-See `code-review:executor/references/subagent-coordination.md` for detailed patterns.
+See `code-review-executor/references/subagent-coordination.md` for detailed patterns.
 
 ### Review Working Directory Pattern
 

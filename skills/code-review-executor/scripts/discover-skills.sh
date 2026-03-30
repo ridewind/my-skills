@@ -9,7 +9,7 @@
 # 搜索范围:
 # - SKILL.md 文件 (skills)
 # - commands/*.md 文件 (插件命令)
-# - 排除自身 (code-review:config-manager, code-review:executor)
+# - 排除自身 (code-review-executor)
 #
 # 模式说明:
 # - 直接模式: 使用正则过滤后直接更新配置文件（原有行为）
@@ -26,7 +26,7 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 # 自身 ID（需要排除）
-SELF_IDS=("code-review:config-manager" "code-review:executor")
+SELF_IDS=("code-review-executor")
 
 # 模式标志
 COLLECT_ONLY=false

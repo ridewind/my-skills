@@ -1,0 +1,107 @@
+# Code Review Skills 配置示例
+# 复制并自定义以适应你的项目
+
+metadata:
+  version: "0.2.0"
+  last_updated: "2026-03-30"
+  auto_sync: true
+
+# Skills 搜索目录配置
+# 支持相对路径（相对于配置文件所在目录）和绝对路径
+skills_directories:
+  - "skills"
+  # - ".skills"
+  # - "../my-skills/skills"
+  # - "~/.claude/skills"
+
+# 可用的 code review skills 和 commands
+# type 字段标识能力类型: skill 或 command
+available_skills:
+  # 代码质量
+  - id: "code-review:code-review"
+    name: "code-review:code-review"
+    type: "command"
+    category: "代码质量"
+    description: "Code review a pull request"
+    tags: ["review", "quality"]
+    recommended_for: ["所有项目"]
+
+  - id: "pr-review-toolkit:review-pr"
+    name: "pr-review-toolkit:review-pr"
+    type: "command"
+    category: "代码质量"
+    description: "Comprehensive PR review using specialized agents"
+    tags: ["review", "pr"]
+    recommended_for: ["所有项目"]
+
+  # 安全审计
+  - id: "security-scanning:security-auditor"
+    name: "security-scanning:security-auditor"
+    type: "skill"
+    category: "安全审计"
+    description: "Expert security auditor specializing in DevSecOps"
+    tags: ["security", "audit"]
+    recommended_for: ["生产环境项目", "处理敏感数据"]
+
+  - id: "security-scanning:threat-modeling-expert"
+    name: "security-scanning:threat-modeling-expert"
+    type: "skill"
+    category: "安全审计"
+    description: "Threat modeling and risk assessment"
+    tags: ["security", "threat"]
+    recommended_for: ["安全关键系统"]
+
+  # 性能分析
+  - id: "application-performance:performance-engineer"
+    name: "application-performance:performance-engineer"
+    type: "skill"
+    category: "性能+架构"
+    description: "Expert performance engineer specializing in optimization"
+    tags: ["performance", "optimization"]
+    recommended_for: ["高性能应用", "大规模系统"]
+
+  # 测试
+  - id: "unit-testing:test-automator"
+    name: "unit-testing:test-automator"
+    type: "skill"
+    category: "测试+清理"
+    description: "Master AI-powered test automation"
+    tags: ["test", "automation"]
+    recommended_for: ["所有项目"]
+
+# 预设配置
+presets:
+  - name: "快速审查"
+    description: "轻量级快速审查，适合日常开发"
+    skills:
+      - "code-review:code-review"
+
+  - name: "全面审查"
+    description: "包含所有维度的深度审查，适合重要变更"
+    skills:
+      - "code-review:code-review"
+      - "pr-review-toolkit:review-pr"
+      - "security-scanning:security-auditor"
+      - "application-performance:performance-engineer"
+
+  - name: "安全优先"
+    description: "专注于安全相关检查"
+    skills:
+      - "security-scanning:security-auditor"
+      - "security-scanning:threat-modeling-expert"
+
+  - name: "性能优先"
+    description: "专注于性能相关检查"
+    skills:
+      - "application-performance:performance-engineer"
+      - "code-review:code-review"
+
+  - name: "发布前审查"
+    description: "发布前的完整检查"
+    skills:
+      - "code-review:code-review"
+      - "pr-review-toolkit:review-pr"
+      - "security-scanning:security-auditor"
+      - "security-scanning:threat-modeling-expert"
+      - "application-performance:performance-engineer"
+      - "unit-testing:test-automator"
