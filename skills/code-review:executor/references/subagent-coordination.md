@@ -380,3 +380,137 @@ One subagent failed. Aborting entire review.
 - Consolidate by file:line
 - List all skills that found it
 - Keep most detailed description
+
+## Subagent Execution State Machine
+
+### State Diagram
+
+```
+[PENDING] ──► [LAUNCHING] ──► [RUNNING] ──► [COMPLETED]
+                  │                │
+                  ▼                ▼
+              [FAILED]        [TIMEOUT]
+                  │                │
+                  +────► [RETRY?] ◄───+
+                            │
+                     ┌──────┴──────┐
+                     ▼             ▼
+                 [RETRY]       [ABORTED]
+                     │
+                     ▼
+              [LAUNCHING] (loop back)
+```
+
+### State Transitions
+
+| From | To | Trigger |
+|------|-----|---------|
+| PENDING | LAUNCHING | Task tool invoked |
+| LAUNCHING | RUNNING | task_id received |
+| LAUNCHING | FAILED | Invalid subagent_type |
+| RUNNING | COMPLETED | Report file generated |
+| RUNNING | TIMEOUT | Timeout exceeded |
+| RUNNING | FAILED | Error during execution |
+| TIMEOUT | RETRY | Retry available |
+| TIMEOUT | ABORTED | Max retries reached |
+| FAILED | RETRY | Recoverable error |
+| FAILED | ABORTED | Unrecoverable error |
+
+## Retry Strategy
+
+### Retry Decision Tree
+
+```
+Subagent Failed
+      │
+      ▼
+Is it recoverable?
+    /        \
+   Yes        No
+    │          │
+    ▼          ▼
+Retry count  Log error
+< max?       and continue
+    /        \
+   Yes        No
+    │          │
+    ▼          ▼
+ Retry      Log and
+ with       abort
+ backoff    this skill
+```
+
+### Retry Configuration
+
+```yaml
+retry_policy:
+  max_retries: 2
+  backoff_multiplier: 2  # Exponential backoff
+  initial_delay_ms: 5000
+
+  recoverable_errors:
+    - timeout
+    - resource_exhausted
+    - rate_limit
+
+  unrecoverable_errors:
+    - skill_not_found
+    - invalid_input
+    - permission_denied
+```
+
+### Partial Results Handling
+
+**When some subagents fail:**
+
+1. **Collect successful reports**: Read all completed report files
+2. **Document failures**: List failed skills and reasons in summary
+3. **Continue consolidation**: Generate summary with available reports
+4. **User notification**: Clearly indicate incomplete coverage
+
+**Example summary section for partial results:**
+```markdown
+## Review Coverage
+
+| Skill | Status | Issues Found |
+|-------|--------|--------------|
+| security-analyzer | ✓ Complete | 5 |
+| code-review | ✓ Complete | 8 |
+| performance-checker | ✗ Failed | N/A |
+| test-coverage | ✗ Timeout | N/A |
+
+**Note:** 2 of 4 skills completed successfully. Review may have gaps.
+```
+
+## Decision Tree for Error Handling
+
+```
+Error Detected
+      │
+      ▼
+┌─────────────────┐
+│ Error Type?     │
+└────────┬────────┘
+         │
+    ┌────┼────┬─────────┬──────────┐
+    ▼    ▼    ▼         ▼          ▼
+Timeout Skill  Resource  Rate       Auth
+         Not   Limit     Limit      Error
+         Found
+    │    │    │         │          │
+    ▼    ▼    ▼         ▼          ▼
+Retry  Skip  Wait     Wait       Abort
++Backoff  or   +Retry   +Backoff   All
+         Abort
+```
+
+## Best Practices Summary
+
+1. **Always use `run_in_background=true`** for parallel execution
+2. **Launch all subagents in a single message** for true parallelism
+3. **Set appropriate timeouts** based on code size
+4. **Handle partial failures gracefully** - continue with available results
+5. **Document all failures** in the final summary
+6. **Implement retry logic** for transient errors
+7. **Use unique output paths** to avoid conflicts
+8. **Monitor resource usage** when launching many subagents

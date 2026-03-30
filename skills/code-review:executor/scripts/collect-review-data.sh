@@ -94,6 +94,49 @@ validate_branch() {
 # Data collection functions
 ###############################################################################
 
+convert_commits_to_json() {
+    local input_file=$1
+    local output_file=$2
+
+    # Try Python3 first (preferred for reliability)
+    if command -v python3 &> /dev/null; then
+        python3 -c "
+import json
+
+commits = []
+with open('$input_file', 'r') as f:
+    for line in f:
+        parts = line.strip().split('|')
+        if len(parts) >= 5:
+            commits.append({
+                'hash': parts[0],
+                'author': parts[1],
+                'email': parts[2],
+                'date': parts[3],
+                'message': parts[4]
+            })
+
+with open('$output_file', 'w') as f:
+    json.dump({'commits': commits}, f, indent=2)
+" 2>/dev/null && return 0
+    fi
+
+    # Fallback to jq if Python3 not available
+    if command -v jq &> /dev/null; then
+        jq -Rs 'split("\n") | map(select(length > 0) | split("|") | select(length >= 5) | {
+            hash: .[0],
+            author: .[1],
+            email: .[2],
+            date: .[3],
+            message: .[4]
+        }) | {commits: .}' "$input_file" > "$output_file" 2>/dev/null && return 0
+    fi
+
+    # Neither tool available - keep txt file
+    log_warn "Neither Python3 nor jq found. Keeping commits.txt instead of commits.json"
+    return 1
+}
+
 collect_repo_info() {
     log_info "Collecting repository information..."
 
@@ -188,6 +231,103 @@ EOF
     if [ -n "$target" ]; then
         echo "  Target: $target ($target_head)"
     fi
+}
+
+###############################################################################
+# MR/PR support functions
+###############################################################################
+
+fetch_github_pr_info() {
+    local pr_number=$1
+
+    log_info "Fetching GitHub PR #$pr_number information..."
+
+    if ! command -v gh &> /dev/null; then
+        log_error "GitHub CLI (gh) not found. Install with: brew install gh"
+        log_error "Or provide branch names directly with -s and -t options"
+        return 1
+    fi
+
+    local pr_info
+    pr_info=$(gh pr view "$pr_number" --json headRefName,baseRefName,title 2>/dev/null)
+
+    if [ $? -ne 0 ]; then
+        log_error "Failed to fetch PR #$pr_number. Ensure you have access to the repository."
+        return 1
+    fi
+
+    SOURCE_BRANCH=$(echo "$pr_info" | python3 -c "import sys,json; print(json.load(sys.stdin)['headRefName'])" 2>/dev/null || \
+                   echo "$pr_info" | jq -r '.headRefName' 2>/dev/null)
+
+    TARGET_BRANCH=$(echo "$pr_info" | python3 -c "import sys,json; print(json.load(sys.stdin)['baseRefName'])" 2>/dev/null || \
+                   echo "$pr_info" | jq -r '.baseRefName' 2>/dev/null)
+
+    local pr_title=$(echo "$pr_info" | python3 -c "import sys,json; print(json.load(sys.stdin).get('title',''))" 2>/dev/null || \
+                     echo "$pr_info" | jq -r '.title' 2>/dev/null)
+
+    echo "  PR Title: $pr_title"
+    echo "  Source: $SOURCE_BRANCH"
+    echo "  Target: $TARGET_BRANCH"
+
+    return 0
+}
+
+fetch_gitlab_mr_info() {
+    local mr_number=$1
+
+    log_info "Fetching GitLab MR #$mr_number information..."
+
+    if ! command -v glab &> /dev/null; then
+        log_error "GitLab CLI (glab) not found. Install with: brew install glab"
+        log_error "Or provide branch names directly with -s and -t options"
+        return 1
+    fi
+
+    local mr_info
+    mr_info=$(glab mr view "$mr_number" --json sourceBranch,targetBranch,title 2>/dev/null)
+
+    if [ $? -ne 0 ]; then
+        log_error "Failed to fetch MR #$mr_number. Ensure you have access to the repository."
+        return 1
+    fi
+
+    SOURCE_BRANCH=$(echo "$mr_info" | python3 -c "import sys,json; print(json.load(sys.stdin)['sourceBranch'])" 2>/dev/null || \
+                   echo "$mr_info" | jq -r '.sourceBranch' 2>/dev/null)
+
+    TARGET_BRANCH=$(echo "$mr_info" | python3 -c "import sys,json; print(json.load(sys.stdin)['targetBranch'])" 2>/dev/null || \
+                   echo "$mr_info" | jq -r '.targetBranch' 2>/dev/null)
+
+    local mr_title=$(echo "$mr_info" | python3 -c "import sys,json; print(json.load(sys.stdin).get('title',''))" 2>/dev/null || \
+                     echo "$mr_info" | jq -r '.title' 2>/dev/null)
+
+    echo "  MR Title: $mr_title"
+    echo "  Source: $SOURCE_BRANCH"
+    echo "  Target: $TARGET_BRANCH"
+
+    return 0
+}
+
+fetch_mr_pr_info() {
+    local number=$1
+    local is_pr=${2:-false}
+
+    # Try to detect platform from remote URL
+    local remote_url=$(git config --get remote.origin.url 2>/dev/null || echo "")
+
+    if [[ "$remote_url" == *"github"* ]] || [ "$is_pr" = "true" ]; then
+        fetch_github_pr_info "$number"
+    elif [[ "$remote_url" == *"gitlab"* ]]; then
+        fetch_gitlab_mr_info "$number"
+    else
+        # Default to GitHub for PR, GitLab for MR
+        if [ -n "$PR_NUMBER" ]; then
+            fetch_github_pr_info "$number"
+        else
+            fetch_gitlab_mr_info "$number"
+        fi
+    fi
+
+    return $?
 }
 
 collect_file_stats() {
@@ -356,9 +496,24 @@ main() {
 
     # If MR/PR number provided, fetch branch info
     if [ -n "$MR_NUMBER" ] || [ -n "$PR_NUMBER" ]; then
-        log_warn "MR/PR review not yet implemented. Please provide branch names."
-        log_warn "Use: -s <source_branch> -t <target_branch>"
-        exit 1
+        echo ""
+        local number="${MR_NUMBER:-$PR_NUMBER}"
+        local is_pr="false"
+        [ -n "$PR_NUMBER" ] && is_pr="true"
+
+        if ! fetch_mr_pr_info "$number" "$is_pr"; then
+            log_error "Failed to fetch MR/PR information"
+            exit 1
+        fi
+
+        # Auto-set review name from MR/PR if not provided
+        if [ -z "$REVIEW_NAME" ] || [ "$REVIEW_NAME" = "review-$(date +%Y%m%d-%H%M%S)" ]; then
+            if [ -n "$PR_NUMBER" ]; then
+                REVIEW_NAME="pr-${PR_NUMBER}"
+            else
+                REVIEW_NAME="mr-${MR_NUMBER}"
+            fi
+        fi
     fi
 
     # Validate branches
@@ -382,26 +537,7 @@ main() {
     # Convert commits.txt to JSON
     if [ -f "$OUTPUT_DIR/commits.txt" ]; then
         log_info "Converting commit history to JSON..."
-        python3 -c "
-import json
-import sys
-
-commits = []
-with open('$OUTPUT_DIR/commits.txt', 'r') as f:
-    for line in f:
-        parts = line.strip().split('|')
-        if len(parts) >= 5:
-            commits.append({
-                'hash': parts[0],
-                'author': parts[1],
-                'email': parts[2],
-                'date': parts[3],
-                'message': parts[4]
-            })
-
-with open('$OUTPUT_DIR/commits.json', 'w') as f:
-    json.dump({'commits': commits}, f, indent=2)
-" 2>/dev/null || log_warn "Python3 not found, commits.txt saved instead of commits.json"
+        convert_commits_to_json "$OUTPUT_DIR/commits.txt" "$OUTPUT_DIR/commits.json"
     fi
 
     echo ""

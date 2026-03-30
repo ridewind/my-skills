@@ -22,6 +22,30 @@ description: This skill should be used when the user asks to "review code", "do 
 - 创建目录
 - 执行 shell 脚本
 
+## Quick Reference
+
+**快速参考**: 详细步骤摘要请参考 `references/quick-reference.md`
+**代码模板**: 可复用的代码模板请参考 `references/code-templates.md`
+
+### 7-Step Workflow
+
+| Step | Action |
+|------|--------|
+| 0 | Debug Mode Detection |
+| 1 | Load & Validate Config |
+| 2 | Determine Review Scope |
+| 3 | Create Working Directory |
+| 4 | Select Review Preset |
+| 5 | Collect Code Content |
+| 6 | Parallel Execution |
+| 7 | Consolidate Results |
+
+### Key Scripts
+
+- `scripts/collect-review-data.sh` - 数据收集
+- `scripts/launch-subagents.sh` - 子代理启动辅助
+- `scripts/find-merge-base.sh` - 查找合并基准
+
 ## Purpose
 
 管理完整的代码审查执行流程：
@@ -294,6 +318,33 @@ AskUserQuestion(
 
 ---
 
+#### 4.5 验证 Skill 可用性
+
+在启动子代理之前，验证配置中引用的所有 skill 都可用。
+
+**验证方法**:
+1. 对于 **skill** 类型：检查 SKILL.md 文件是否存在于已配置的 skill 目录中
+2. 对于 **command** 类型：检查命令文件是否存在于插件缓存中
+
+**验证逻辑**:
+```bash
+# 检查 skill 类型
+skill_path="$SKILL_DIR/${skill_id//:/\/}/SKILL.md"
+[ -f "$skill_path" ] && echo "Available" || echo "Not found"
+
+# 检查 command 类型
+command_file=$(find ~/.claude/plugins/cache -name "${skill_id}.md" 2>/dev/null)
+[ -n "$command_file" ] && echo "Available" || echo "Not found"
+```
+
+**处理缺失 Skill**:
+如果某个 skill 不可用，使用 AskUserQuestion 提示用户选择：
+- **跳过此 skill** - 继续执行其他 skill
+- **取消审查** - 终止执行
+- **尝试安装** - 提示安装命令（如果已知）
+
+---
+
 ### Step 5: 收集代码内容
 
 收集完整的审查信息并保存到工作目录。
@@ -404,28 +455,6 @@ AskUserQuestion(
                 {
                     "label": "取消",
                     "description": "取消本次审查，退出技能"
-                }
-            ],
-            "multiSelect": False
-        }
-    ]
-)
-```
-
-**问题描述中呈现的信息**:
-```
-审查类型: 分支对比
-源分支: feature/auth
-目标分支: dev
-
-变更统计:
-- 15 个文件修改
-- +350 行, -120 行
-
-工作目录: /path/to/reviews/auth-feature-20260130-1
-```
-
-**等待用户确认后继续，不要在没有用户确认的情况下继续到 Step 6。**
                 }
             ],
             "multiSelect": False

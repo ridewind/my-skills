@@ -69,11 +69,19 @@ Options:
   -w, --workdir DIR       Working directory containing review data (required)
   -s, --skills SKILLS     Comma-separated list of skills (e.g., "skill1,skill2")
   -t, --timeout SECONDS   Timeout per subagent in seconds (default: 300)
+                          Use "auto" for adaptive timeout based on diff size
   -h, --help              Show this help message
+
+Adaptive Timeout Values:
+  - Small (<500 lines):     60s
+  - Medium (500-2000):      180s
+  - Large (2000-10000):     300s
+  - Very Large (>10000):    600s
 
 Example:
   $(basename "$0") -w ./reviews/auth-feature \\
-    -s "security-analyzer,code-review,performance-checker"
+    -s "security-analyzer,code-review,performance-checker" \\
+    -t auto
 
 Note:
   This script generates Task tool commands that should be used in Claude Code.
@@ -135,6 +143,35 @@ validate_args() {
         echo "Error: diff.patch not found in $WORKDIR"
         echo "Run collect-review-data.sh first."
         exit 1
+    fi
+}
+
+###############################################################################
+# Adaptive timeout calculation
+###############################################################################
+
+calculate_adaptive_timeout() {
+    local diff_file="$WORKDIR/diff.patch"
+
+    if [ ! -f "$diff_file" ]; then
+        echo "Warning: diff.patch not found, using default timeout"
+        return
+    fi
+
+    local line_count=$(wc -l < "$diff_file" 2>/dev/null || echo 0)
+
+    if [ "$line_count" -lt 500 ]; then
+        TIMEOUT=60
+        echo "Info: Small diff ($line_count lines) -> timeout: 60s"
+    elif [ "$line_count" -lt 2000 ]; then
+        TIMEOUT=180
+        echo "Info: Medium diff ($line_count lines) -> timeout: 180s"
+    elif [ "$line_count" -lt 10000 ]; then
+        TIMEOUT=300
+        echo "Info: Large diff ($line_count lines) -> timeout: 300s"
+    else
+        TIMEOUT=600
+        echo "Info: Very large diff ($line_count lines) -> timeout: 600s"
     fi
 }
 
@@ -255,6 +292,11 @@ show_available_skills() {
 main() {
     parse_args "$@"
     validate_args
+
+    # Calculate adaptive timeout if requested
+    if [ "$TIMEOUT" = "auto" ]; then
+        calculate_adaptive_timeout
+    fi
 
     generate_task_commands "$WORKDIR" "$SKILLS" "$TIMEOUT"
 

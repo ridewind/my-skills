@@ -1,0 +1,45 @@
+{
+  "review_metadata": {
+    "review_name": "auth-feature",
+    "review_type": "branch_comparison",
+    "created_at": "2026-03-27T10:30:00Z",
+    "repository": "https://github.com/example/project"
+  },
+  "branches": {
+    "source": {
+      "name": "feature/auth",
+      "commit": "abc123def456"
+    },
+    "target": {
+      "name": "dev",
+      "commit": "xyz789uvw012"
+    },
+    "merge_base": "common123base456"
+  },
+  "statistics": {
+    "files_changed": 15,
+    "lines_added": 350,
+    "lines_removed": 120,
+    "commits_count": 8
+  },
+  "files": [
+    {
+      "path": "src/auth/login.py",
+      "change_type": "modified",
+      "lines_added": 45,
+      "lines_removed": 12
+    },
+    {
+      "path": "src/auth/middleware.py",
+      "change_type": "added",
+      "lines_added": 120,
+      "lines_removed": 0
+    },
+    {
+      "path": "tests/test_auth.py",
+      "change_type": "modified",
+      "lines_added": 85,
+      "lines_removed": 30
+    }
+  ]
+}
